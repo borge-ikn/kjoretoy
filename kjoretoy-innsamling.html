@@ -477,7 +477,7 @@ function renderSuggestions() {
   if (!suggestionItems.length) { box.classList.remove('open'); return; }
   typeaheadActiveIdx = -1;
   box.innerHTML = suggestionItems.map((v, i) => {
-    const km  = v.odometer_value != null ? v.odometer_value.toLocaleString('no-NO') + ' km' : '';
+    const km  = v.odometer_value != null ? Math.round(v.odometer_value / 1000).toLocaleString('no-NO') + ' km' : '';
     const sub = [v.alias, v.driver_name, km].filter(Boolean).join(' · ');
     return `<div class="suggestion-item" onmousedown="selectVehicle('${v.license_plate.replace(/'/g,"\\'")}')" data-idx="${i}">
       <div class="suggestion-main">${esc(v.license_plate)}</div>
@@ -519,7 +519,7 @@ function selectVehicle(regnr) {
   document.getElementById('regnrInput').value = regnr;
   document.getElementById('regnrValue').value = regnr;
   closeSuggestions();
-  const km    = v.odometer_value != null ? v.odometer_value.toLocaleString('no-NO') + ' km' : '–';
+  const km    = v.odometer_value != null ? Math.round(v.odometer_value / 1000).toLocaleString('no-NO') + ' km' : '–';
   const parts = [];
   if (v.manufacturer || v.model) parts.push(`${v.manufacturer || ''} ${v.model || ''}`.trim());
   parts.push(`Sjåfør: ${v.driver_name || '–'}`);
