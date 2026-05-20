@@ -441,7 +441,7 @@ async function loadVehicles() {
 async function loginWithMicrosoft() {
   await client.auth.signInWithOAuth({
     provider: 'azure',
-    options: { redirectTo: window.location.href }
+    options: { redirectTo: 'https://industrikran-kjoretoy.netlify.app/kjoretoy-innsamling' }
   });
 }
 
