@@ -241,6 +241,29 @@ td { padding: 10px 12px; vertical-align: middle; }
 #backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 45; }
 
 footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub); border-top: 1px solid var(--border); margin-top: 8px; }
+
+/* ── Lightbox ── */
+#lightbox {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92);
+  z-index: 200; align-items: center; justify-content: center; flex-direction: column;
+}
+#lightbox.open { display: flex; }
+#lightbox img { max-width: 92vw; max-height: 85vh; object-fit: contain; border-radius: 6px; box-shadow: 0 8px 40px rgba(0,0,0,.6); }
+#lightbox-caption { color: rgba(255,255,255,.7); font-size: .8rem; margin-top: 10px; }
+#lightbox-close {
+  position: absolute; top: 16px; right: 20px;
+  background: rgba(255,255,255,.15); border: none; color: #fff;
+  width: 38px; height: 38px; border-radius: 50%; font-size: 1.4rem;
+  cursor: pointer; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+#lightbox-prev, #lightbox-next {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(255,255,255,.15); border: none; color: #fff;
+  width: 44px; height: 44px; border-radius: 50%; font-size: 1.4rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+#lightbox-prev { left: 16px; }
+#lightbox-next { right: 16px; }
 </style>
 </head>
 <body>
@@ -371,6 +394,15 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
   <footer>Industrikran · ABAX + Vernerunde · <span id="footerDate"></span></footer>
 </div>
 
+<!-- ── Lightbox ── -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()">×</button>
+  <button id="lightbox-prev" onclick="event.stopPropagation();lightboxNav(-1)">‹</button>
+  <img id="lightbox-img" src="" alt="">
+  <div id="lightbox-caption"></div>
+  <button id="lightbox-next" onclick="event.stopPropagation();lightboxNav(1)">›</button>
+</div>
+
 <!-- ── Detail panel ── -->
 <div id="backdrop" onclick="closePanel()"></div>
 <div id="detailPanel">
@@ -456,12 +488,14 @@ async function loadData() {
       verneAll[key].push(r);
     });
 
-    // Merge
-    allRows = (abaxRes.data || []).map(v => {
-      const key = (v.license_plate || '').toUpperCase();
-      const verne = verneMap[key] || null;
-      return { ...v, verne };
-    });
+    // Merge — beholder kun kjøretøy med sjåfør og registreringsnummer
+    allRows = (abaxRes.data || [])
+      .filter(v => v.driver_name?.trim() && v.license_plate?.trim())
+      .map(v => {
+        const key = (v.license_plate || '').toUpperCase();
+        const verne = verneMap[key] || null;
+        return { ...v, verne };
+      });
 
     filtered = [...allRows];
     currentPage = 1;
@@ -679,11 +713,21 @@ function openPanel(idx) {
     ].filter(g => g.urls && g.urls.length > 0);
 
     if (photoGroups.length) {
+      // Bygg en flat liste over alle bilder for lightbox-navigering
+      const allImgs = photoGroups.flatMap(g => g.urls.map(u => ({ url: u, label: g.label })));
+      window._lbImgs = allImgs;
+
       html += `<div class="panel-section"><div class="panel-section-title">Bilder</div>`;
+      let imgIdx = 0;
       photoGroups.forEach(g => {
-        html += `<div class="gallery-group-label">${g.label}</div>
+        html += `<div class="gallery-group-label">${g.label} (${g.urls.length})</div>
           <div class="photo-gallery">
-            ${g.urls.map(u => `<a href="${u}" target="_blank"><img src="${u}" loading="lazy" alt="${g.label}"></a>`).join('')}
+            ${g.urls.map(u => {
+              const i = imgIdx++;
+              return `<div class="thumb-wrap" style="aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:zoom-in" onclick="openLightbox(${i})">
+                <img src="${u}" loading="lazy" alt="${g.label}" style="width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform=''">
+              </div>`;
+            }).join('')}
           </div>`;
       });
       html += `</div>`;
@@ -752,6 +796,44 @@ function updateTimestamp() {
 
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+let _lbIdx = 0;
+
+function openLightbox(idx) {
+  _lbIdx = idx;
+  renderLightbox();
+  document.getElementById('lightbox').classList.add('open');
+  document.addEventListener('keydown', lbKey);
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.removeEventListener('keydown', lbKey);
+}
+
+function lightboxNav(dir) {
+  const imgs = window._lbImgs || [];
+  _lbIdx = (_lbIdx + dir + imgs.length) % imgs.length;
+  renderLightbox();
+}
+
+function renderLightbox() {
+  const imgs = window._lbImgs || [];
+  if (!imgs.length) return;
+  const img = imgs[_lbIdx];
+  document.getElementById('lightbox-img').src = img.url;
+  document.getElementById('lightbox-caption').textContent = `${img.label} · ${_lbIdx + 1} / ${imgs.length}`;
+  document.getElementById('lightbox-prev').style.display = imgs.length > 1 ? 'flex' : 'none';
+  document.getElementById('lightbox-next').style.display = imgs.length > 1 ? 'flex' : 'none';
+}
+
+function lbKey(e) {
+  if (e.key === 'Escape')     closeLightbox();
+  if (e.key === 'ArrowRight') lightboxNav(1);
+  if (e.key === 'ArrowLeft')  lightboxNav(-1);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

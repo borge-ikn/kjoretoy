@@ -362,7 +362,7 @@ function createPhotoField(containerId, key, label) {
   container.innerHTML = `
     <label class="field-label">${label}</label>
     <div class="photo-grid" id="grid-${key}"></div>
-    <label class="add-photo-btn" for="inp-${key}">
+    <label class="add-photo-btn" for="inp-${key}" id="addbtn-${key}">
       📷 Legg til bilde
       <input type="file" id="inp-${key}" accept="image/*" multiple
              style="position:absolute;width:1px;height:1px;opacity:0"
@@ -384,13 +384,24 @@ function removePhoto(key, idx) {
 function renderGrid(key) {
   const grid = document.getElementById(`grid-${key}`);
   if (!grid) return;
-  grid.innerHTML = photoFields[key].files.map((f, i) => {
+  const files = photoFields[key].files;
+  grid.innerHTML = files.map((f, i) => {
     const url = URL.createObjectURL(f);
     return `<div class="thumb-wrap">
       <img src="${url}" loading="lazy">
       <button class="thumb-remove" onclick="removePhoto('${key}',${i})">×</button>
     </div>`;
   }).join('');
+
+  // Oppdater knapp-tekst med antall bilder
+  const btn = document.getElementById(`addbtn-${key}`);
+  if (btn) {
+    const inp = btn.querySelector('input');
+    btn.childNodes[0].textContent = files.length > 0
+      ? `📷 Legg til flere bilder (${files.length} valgt)`
+      : '📷 Legg til bilde';
+    if (inp) btn.appendChild(inp); // behold input-elementet
+  }
 }
 
 // ── Toggle ────────────────────────────────────────────────────────────────────
