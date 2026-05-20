@@ -140,6 +140,15 @@ main { padding: 24px 28px; max-width: 1600px; margin: 0 auto; }
   transition: all .15s; white-space: nowrap;
 }
 .filter-toggle.active { border-color: var(--red); background: var(--red-lt); color: var(--red); }
+.filter-select {
+  padding: 8px 30px 8px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+  background: var(--card); font-size: .8rem; font-weight: 600; cursor: pointer;
+  color: var(--sub); font-family: inherit; outline: none; -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  transition: border-color .15s; white-space: nowrap;
+}
+.filter-select:focus { border-color: var(--navy); }
 .table-count { font-size: .78rem; color: var(--sub); margin-left: auto; white-space: nowrap; }
 
 /* ── Table card ── */
@@ -363,6 +372,9 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
         <button class="filter-toggle" id="skaderFilter" onclick="toggleDamageFilter()">
           ⚠️ Bare med skader
         </button>
+        <select class="filter-select" id="avdelingSelect" onchange="setAvdelingFilter()">
+          <option value="">Alle avdelinger</option>
+        </select>
         <div class="table-count" id="tableCount"></div>
       </div>
 
@@ -430,6 +442,7 @@ const pageSize  = 25;
 let sortCol     = 5;    // default: sist inspektert
 let sortAsc     = false;
 let damageOnly  = false;
+let avdelingFilter = '';
 let verneMap    = {};   // regnr → latest vernerunde record
 let verneAll    = {};   // regnr → all vernerunde records (for history)
 
@@ -468,7 +481,7 @@ async function loadData() {
   try {
     const [abaxRes, verneRes] = await Promise.all([
       client.from('abax_kjoretoy')
-        .select('license_plate,alias,manufacturer,model,driver_name,fuel_type,unit_health,location_in_movement,odometer_value,pkk_kontrollfrist')
+        .select('license_plate,alias,manufacturer,model,driver_name,fuel_type,unit_health,location_in_movement,odometer_value,pkk_kontrollfrist,organization_name')
         .order('license_plate'),
       client.from('kjoretoy_vernerunde')
         .select('*')
@@ -499,6 +512,14 @@ async function loadData() {
 
     filtered = [...allRows];
     currentPage = 1;
+
+    // Populate avdeling dropdown
+    const avdelinger = [...new Set(allRows.map(r => r.organization_name).filter(Boolean))].sort((a,b) => a.localeCompare(b,'no'));
+    const avdSel = document.getElementById('avdelingSelect');
+    const prevAvd = avdSel.value;
+    avdSel.innerHTML = '<option value="">Alle avdelinger</option>' +
+      avdelinger.map(a => `<option value="${esc(a)}"${a===prevAvd?' selected':''}>${esc(a)}</option>`).join('');
+
     renderKPIs();
     applyFilters();
     updateTimestamp();
@@ -540,9 +561,11 @@ function renderKPIs() {
 
 // ── Filters & sort ────────────────────────────────────────────────────────────
 function applyFilters() {
-  const q = document.getElementById('searchInput').value.toLowerCase();
+  const q   = document.getElementById('searchInput').value.toLowerCase();
+  const avd = avdelingFilter;
   filtered = allRows.filter(r => {
     if (damageOnly && r.verne?.har_skader !== true) return false;
+    if (avd && (r.organization_name || '') !== avd) return false;
     if (!q) return true;
     return (
       (r.license_plate  || '').toLowerCase().includes(q) ||
@@ -560,6 +583,11 @@ function applyFilters() {
 function toggleDamageFilter() {
   damageOnly = !damageOnly;
   document.getElementById('skaderFilter').classList.toggle('active', damageOnly);
+  applyFilters();
+}
+
+function setAvdelingFilter() {
+  avdelingFilter = document.getElementById('avdelingSelect').value;
   applyFilters();
 }
 
@@ -605,7 +633,7 @@ function renderTable() {
 
   tbody.innerHTML = page.map((r, i) => {
     const abaxKm = r.odometer_value != null
-      ? Math.round(r.odometer_value / 1000).toLocaleString('no-NO') + ' 000'
+      ? r.odometer_value.toLocaleString('no-NO') + ' km'
       : '<span class="no-data">–</span>';
     const skjemaKm = r.verne?.kilometerstand != null
       ? r.verne.kilometerstand.toLocaleString('no-NO')
@@ -683,7 +711,7 @@ function openPanel(idx) {
   html += `<div class="panel-section">
     <div class="panel-section-title">Kjøretøyinfo (ABAX)</div>
     <div class="detail-row"><span class="detail-label">Drivstoff</span><span class="detail-value">${fuelLabel(r.fuel_type)}</span></div>
-    <div class="detail-row"><span class="detail-label">Km (ABAX)</span><span class="detail-value">${r.odometer_value != null ? Math.round(r.odometer_value/1000).toLocaleString('no-NO')+' 000 km' : '–'}</span></div>
+    <div class="detail-row"><span class="detail-label">Km (ABAX)</span><span class="detail-value">${r.odometer_value != null ? r.odometer_value.toLocaleString('no-NO')+' km' : '–'}</span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${healthBadge(r.unit_health)}</span></div>
     ${r.pkk_kontrollfrist ? `<div class="detail-row"><span class="detail-label">PKK-frist</span><span class="detail-value">${fmtDate(r.pkk_kontrollfrist)}</span></div>` : ''}
   </div>`;

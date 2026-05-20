@@ -113,6 +113,34 @@ select:focus, input[type="number"]:focus, textarea:focus {
 textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
 select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
 
+/* ── Typeahead ── */
+.typeahead-wrap { position: relative; }
+.typeahead-input {
+  width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+  border-radius: 8px; font-size: .9rem; font-family: inherit;
+  color: var(--text); background: #fff; outline: none;
+  transition: border-color .15s, box-shadow .15s; -webkit-appearance: none;
+}
+.typeahead-input:focus {
+  border-color: var(--navy); box-shadow: 0 0 0 3px rgba(28,52,97,.12);
+}
+.suggestions {
+  display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+  background: #fff; border: 1.5px solid var(--navy); border-radius: 8px;
+  max-height: 260px; overflow-y: auto; z-index: 30;
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
+}
+.suggestions.open { display: block; }
+.suggestion-item {
+  padding: 11px 14px; cursor: pointer;
+  border-bottom: 1px solid var(--border); transition: background .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.suggestion-item:last-child { border-bottom: none; }
+.suggestion-item:hover, .suggestion-item.active { background: #eef2f9; }
+.suggestion-main { font-size: .88rem; font-weight: 700; color: var(--navy); }
+.suggestion-sub  { font-size: .75rem; color: var(--sub); margin-top: 2px; }
+
 /* ── Toggle (Ja/Nei) ── */
 .toggle-wrap { display: flex; gap: 10px; }
 .toggle-option {
@@ -260,10 +288,15 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
       <div class="card-header">🚗 Kjøretøy</div>
       <div class="card-body">
         <div class="field">
-          <label class="field-label" for="regnrSelect">Registreringsnummer<span class="req">*</span></label>
-          <select id="regnrSelect" onchange="onVehicleSelect()">
-            <option value="">– Velg kjøretøy –</option>
-          </select>
+          <label class="field-label" for="regnrInput">Registreringsnummer<span class="req">*</span></label>
+          <div class="typeahead-wrap">
+            <input class="typeahead-input" type="text" id="regnrInput"
+                   placeholder="Søk reg.nr, sjåfør, alias…"
+                   autocomplete="off" spellcheck="false"
+                   oninput="filterVehicles()" onkeydown="typeaheadKey(event)">
+            <input type="hidden" id="regnrValue">
+            <div class="suggestions" id="regnrSuggestions"></div>
+          </div>
           <div id="vehicleInfo" style="margin-top:8px;font-size:.78rem;color:var(--sub)"></div>
         </div>
         <div class="field">
@@ -417,35 +450,94 @@ function setToggle(group, val) {
   if (exp) exp.classList.toggle('open', val === 'ja');
 }
 
-// ── Vehicle select ────────────────────────────────────────────────────────────
+// ── Vehicle typeahead ─────────────────────────────────────────────────────────
 let vehicles = [];
+let suggestionItems = [];
+let typeaheadActiveIdx = -1;
 
-function onVehicleSelect() {
-  const regnr = document.getElementById('regnrSelect').value;
-  const info  = document.getElementById('vehicleInfo');
-  const v = vehicles.find(x => x.license_plate === regnr);
-  if (v) {
-    const km = v.odometer_value ? Math.round(v.odometer_value / 1000).toLocaleString('no-NO') + ' 000 km' : '–';
-    info.textContent = `${v.manufacturer || ''} ${v.model || ''} · Sjåfør: ${v.driver_name || '–'} · ABAX km: ${km}`;
-  } else {
-    info.textContent = '';
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function filterVehicles() {
+  document.getElementById('regnrValue').value = '';
+  document.getElementById('vehicleInfo').textContent = '';
+  const q = document.getElementById('regnrInput').value.toLowerCase().trim();
+  if (!q) { closeSuggestions(); return; }
+  suggestionItems = vehicles.filter(v =>
+    (v.license_plate || '').toLowerCase().includes(q) ||
+    (v.alias         || '').toLowerCase().includes(q) ||
+    (v.driver_name   || '').toLowerCase().includes(q)
+  ).slice(0, 15);
+  renderSuggestions();
+}
+
+function renderSuggestions() {
+  const box = document.getElementById('regnrSuggestions');
+  if (!suggestionItems.length) { box.classList.remove('open'); return; }
+  typeaheadActiveIdx = -1;
+  box.innerHTML = suggestionItems.map((v, i) => {
+    const km  = v.odometer_value != null ? v.odometer_value.toLocaleString('no-NO') + ' km' : '';
+    const sub = [v.alias, v.driver_name, km].filter(Boolean).join(' · ');
+    return `<div class="suggestion-item" onmousedown="selectVehicle('${v.license_plate.replace(/'/g,"\\'")}')" data-idx="${i}">
+      <div class="suggestion-main">${esc(v.license_plate)}</div>
+      ${sub ? `<div class="suggestion-sub">${esc(sub)}</div>` : ''}
+    </div>`;
+  }).join('');
+  box.classList.add('open');
+}
+
+function closeSuggestions() {
+  document.getElementById('regnrSuggestions').classList.remove('open');
+  typeaheadActiveIdx = -1;
+}
+
+function typeaheadKey(e) {
+  const box   = document.getElementById('regnrSuggestions');
+  const items = box.querySelectorAll('.suggestion-item');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    typeaheadActiveIdx = Math.min(typeaheadActiveIdx + 1, items.length - 1);
+    items.forEach((el, i) => el.classList.toggle('active', i === typeaheadActiveIdx));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    typeaheadActiveIdx = Math.max(typeaheadActiveIdx - 1, 0);
+    items.forEach((el, i) => el.classList.toggle('active', i === typeaheadActiveIdx));
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (typeaheadActiveIdx >= 0 && suggestionItems[typeaheadActiveIdx]) {
+      selectVehicle(suggestionItems[typeaheadActiveIdx].license_plate);
+    }
+  } else if (e.key === 'Escape') {
+    closeSuggestions();
   }
+}
+
+function selectVehicle(regnr) {
+  const v = vehicles.find(x => x.license_plate === regnr);
+  if (!v) return;
+  document.getElementById('regnrInput').value = regnr;
+  document.getElementById('regnrValue').value = regnr;
+  closeSuggestions();
+  const km    = v.odometer_value != null ? v.odometer_value.toLocaleString('no-NO') + ' km' : '–';
+  const parts = [];
+  if (v.manufacturer || v.model) parts.push(`${v.manufacturer || ''} ${v.model || ''}`.trim());
+  parts.push(`Sjåfør: ${v.driver_name || '–'}`);
+  parts.push(`ABAX km: ${km}`);
+  document.getElementById('vehicleInfo').textContent = parts.join(' · ');
 }
 
 async function loadVehicles() {
   const { data, error } = await client
     .from('abax_kjoretoy')
     .select('license_plate,alias,manufacturer,model,driver_name,odometer_value')
+    .not('driver_name', 'is', null)
+    .not('license_plate', 'is', null)
+    .neq('driver_name', '')
+    .neq('license_plate', '')
     .order('license_plate');
   if (error || !data) return;
   vehicles = data;
-  const sel = document.getElementById('regnrSelect');
-  data.forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = v.license_plate;
-    opt.textContent = `${v.license_plate}${v.alias ? ' – ' + v.alias : ''}${v.driver_name ? ' (' + v.driver_name + ')' : ''}`;
-    sel.appendChild(opt);
-  });
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -495,7 +587,7 @@ async function uploadField(key, regnr, ts) {
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 async function submitForm() {
-  const regnr = document.getElementById('regnrSelect').value.trim();
+  const regnr = document.getElementById('regnrValue').value.trim();
   const km    = document.getElementById('kmInput').value;
 
   if (!regnr) { showError('Velg et kjøretøy.'); return; }
@@ -570,7 +662,8 @@ function showSuccess(regnr) {
 }
 
 function resetForm() {
-  document.getElementById('regnrSelect').value    = '';
+  document.getElementById('regnrInput').value     = '';
+  document.getElementById('regnrValue').value     = '';
   document.getElementById('kmInput').value        = '';
   document.getElementById('vehicleInfo').textContent = '';
   document.getElementById('skadebesk').value      = '';
@@ -621,6 +714,11 @@ async function init() {
   createPhotoField('pf-venstre',  'venstre',   'Bilde ute venstre');
   createPhotoField('pf-interior', 'interior',  'Bilder interiør');
   createPhotoField('pf-skade',    'skade',     'Bilder av skade');
+
+  // Close suggestions when clicking outside typeahead
+  document.getElementById('regnrInput').addEventListener('blur', () => {
+    setTimeout(closeSuggestions, 150);
+  });
 
   // Check session
   const { data: { session } } = await client.auth.getSession();
