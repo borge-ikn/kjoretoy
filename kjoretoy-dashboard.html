@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kjøretøy Dashboard – Industrikran</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy:    #1c3461;
+  --gold:    #e8a01c;
+  --green:   #059669;
+  --green-lt:#d1fae5;
+  --red:     #dc2626;
+  --red-lt:  #fee2e2;
+  --amber:   #d97706;
+  --amber-lt:#fef3c7;
+  --blue:    #2563eb;
+  --blue-lt: #dbeafe;
+  --border:  #e5e7eb;
+  --bg:      #f3f4f6;
+  --card:    #ffffff;
+  --text:    #111827;
+  --sub:     #6b7280;
+  --radius:  12px;
+}
+
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ── Login ── */
+#loginScreen {
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: var(--navy); padding: 32px 24px;
+}
+.login-card {
+  background: #fff; border-radius: 16px; padding: 40px 36px;
+  max-width: 400px; width: 100%; text-align: center;
+  box-shadow: 0 8px 40px rgba(0,0,0,.3);
+}
+.login-card .icon { font-size: 3rem; margin-bottom: 12px; }
+.login-card h2 { font-size: 1.25rem; color: var(--navy); margin-bottom: 6px; }
+.login-card p  { font-size: .85rem; color: var(--sub); margin-bottom: 28px; line-height: 1.55; }
+.ms-btn {
+  width: 100%; padding: 14px; background: var(--navy); border: none;
+  border-radius: 10px; color: #fff; font-size: .95rem; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: background .15s;
+}
+.ms-btn:hover { background: #162a50; }
+
+/* ── App shell ── */
+#appScreen { display: none; }
+
+/* ── Header ── */
+header {
+  background: var(--navy); color: #fff;
+  padding: 16px 28px; display: flex; align-items: center;
+  justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  position: sticky; top: 0; z-index: 40;
+}
+header h1 { font-size: 1.15rem; font-weight: 700; }
+header p  { font-size: .75rem; opacity: .75; margin-top: 2px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.user-chip {
+  background: rgba(232,160,28,.25); border: 1px solid rgba(232,160,28,.5);
+  color: #fef3c7; border-radius: 20px; padding: 4px 12px;
+  font-size: .75rem; font-weight: 600;
+}
+.refresh-btn, .logout-btn {
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3);
+  color: #fff; border-radius: 20px; padding: 6px 13px;
+  font-size: .75rem; font-weight: 600; cursor: pointer;
+  font-family: inherit; display: flex; align-items: center; gap: 5px;
+  transition: background .15s;
+}
+.refresh-btn:hover, .logout-btn:hover { background: rgba(255,255,255,.25); }
+.refresh-btn.spinning svg { animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Loading ── */
+#loadingOverlay {
+  position: fixed; inset: 0; background: rgba(243,244,246,.88);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; z-index: 100; gap: 14px;
+}
+.spinner { width: 42px; height: 42px; border: 4px solid var(--border); border-top-color: var(--navy); border-radius: 50%; animation: spin .8s linear infinite; }
+#loadingOverlay p { font-size: .88rem; color: var(--sub); }
+
+/* ── Error banner ── */
+#errorBanner {
+  display: none; margin: 16px 28px; padding: 12px 18px;
+  background: var(--red-lt); border: 1px solid #fca5a5;
+  color: var(--red); border-radius: 8px; font-size: .85rem;
+}
+
+/* ── Main ── */
+main { padding: 24px 28px; max-width: 1600px; margin: 0 auto; }
+.section-title { font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--sub); margin-bottom: 12px; }
+
+/* ── KPI grid ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-bottom: 28px; }
+.kpi {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 22px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  display: flex; flex-direction: column; gap: 5px;
+  border-left: 4px solid transparent; transition: box-shadow .15s;
+}
+.kpi:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+.kpi-icon { font-size: 1.4rem; margin-bottom: 4px; }
+.kpi-value { font-size: 2rem; font-weight: 800; line-height: 1; }
+.kpi-label { font-size: .78rem; color: var(--sub); font-weight: 500; }
+.kpi-sub   { font-size: .7rem;  color: var(--sub); }
+.kpi.navy  { border-left-color: var(--navy);  } .kpi.navy  .kpi-value { color: var(--navy); }
+.kpi.green { border-left-color: var(--green); } .kpi.green .kpi-value { color: var(--green); }
+.kpi.gold  { border-left-color: var(--gold);  } .kpi.gold  .kpi-value { color: var(--amber); }
+.kpi.red   { border-left-color: var(--red);   } .kpi.red   .kpi-value { color: var(--red); }
+.kpi.amber { border-left-color: var(--amber); } .kpi.amber .kpi-value { color: var(--amber); }
+
+/* ── Toolbar ── */
+.toolbar {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.search-box { position: relative; flex: 1; min-width: 200px; max-width: 380px; }
+.search-box svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--sub); pointer-events: none; }
+.search-box input {
+  width: 100%; padding: 9px 12px 9px 34px; border: 1.5px solid var(--border);
+  border-radius: 8px; font-size: .83rem; font-family: inherit; outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.search-box input:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(28,52,97,.1); }
+
+.filter-toggle {
+  padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 8px;
+  background: var(--card); font-size: .8rem; font-weight: 600; cursor: pointer;
+  color: var(--sub); font-family: inherit; display: flex; align-items: center; gap: 6px;
+  transition: all .15s; white-space: nowrap;
+}
+.filter-toggle.active { border-color: var(--red); background: var(--red-lt); color: var(--red); }
+.table-count { font-size: .78rem; color: var(--sub); margin-left: auto; white-space: nowrap; }
+
+/* ── Table card ── */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 24px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+thead th {
+  background: #f9fafb; border-bottom: 2px solid var(--border); padding: 9px 12px;
+  text-align: left; font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--sub); white-space: nowrap;
+  cursor: pointer; user-select: none;
+}
+thead th:hover { color: var(--text); background: #f3f4f6; }
+thead th.sorted { color: var(--navy); }
+.si { margin-left: 4px; opacity: .35; font-style: normal; }
+thead th.sorted .si { opacity: 1; }
+tbody tr { border-bottom: 1px solid #f3f4f6; transition: background .08s; cursor: pointer; }
+tbody tr:hover { background: #f0f4ff; }
+tbody tr:last-child { border-bottom: none; }
+td { padding: 10px 12px; vertical-align: middle; }
+.td-primary { font-weight: 600; }
+.no-data { color: var(--sub); font-style: italic; }
+
+/* ── Badges ── */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 99px; font-size: .7rem; font-weight: 600; white-space: nowrap; }
+.b-green  { background: var(--green-lt); color: var(--green); }
+.b-red    { background: var(--red-lt);   color: var(--red);   }
+.b-amber  { background: var(--amber-lt); color: var(--amber); }
+.b-gray   { background: #f3f4f6;         color: var(--sub);   }
+.b-blue   { background: var(--blue-lt);  color: var(--blue);  }
+.b-navy   { background: #e8edf5;         color: var(--navy);  }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ── Pagination ── */
+.pagination { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; gap: 8px; flex-wrap: wrap; }
+.page-info { font-size: .75rem; color: var(--sub); }
+.page-btns { display: flex; gap: 4px; }
+.pbtn { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); font-size: .75rem; cursor: pointer; transition: all .12s; font-family: inherit; }
+.pbtn:hover:not(:disabled) { background: var(--blue-lt); border-color: var(--blue); color: var(--blue); }
+.pbtn:disabled { opacity: .4; cursor: default; }
+.pbtn.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+
+/* ── Detail panel ── */
+#detailPanel {
+  position: fixed; right: -480px; top: 0; bottom: 0; width: 460px;
+  background: var(--card); box-shadow: -4px 0 24px rgba(0,0,0,.15);
+  z-index: 50; display: flex; flex-direction: column;
+  transition: right .25s cubic-bezier(.4,0,.2,1);
+  border-left: 1px solid var(--border);
+}
+#detailPanel.open { right: 0; }
+.panel-header {
+  padding: 18px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between;
+  background: var(--navy); color: #fff;
+}
+.panel-header h2 { font-size: 1.05rem; font-weight: 700; }
+.panel-header p  { font-size: .75rem; opacity: .75; margin-top: 3px; }
+.panel-close {
+  background: rgba(255,255,255,.15); border: none; color: #fff;
+  width: 30px; height: 30px; border-radius: 50%; font-size: 1.1rem;
+  cursor: pointer; line-height: 1; flex-shrink: 0; margin-top: 2px;
+}
+.panel-body { flex: 1; overflow-y: auto; padding: 20px; }
+
+.panel-section { margin-bottom: 22px; }
+.panel-section-title { font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--sub); margin-bottom: 10px; }
+
+.detail-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: .82rem; }
+.detail-row:last-child { border-bottom: none; }
+.detail-label { color: var(--sub); }
+.detail-value { font-weight: 600; text-align: right; max-width: 60%; }
+
+/* ── Photo gallery ── */
+.photo-gallery { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.photo-gallery a { display: block; aspect-ratio: 1; border-radius: 8px; overflow: hidden; }
+.photo-gallery img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; }
+.photo-gallery a:hover img { transform: scale(1.05); }
+.gallery-group-label { font-size: .72rem; font-weight: 600; color: var(--sub); margin: 10px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
+
+/* ── History accordion ── */
+.history-toggle {
+  width: 100%; padding: 10px 14px; background: #f9fafb;
+  border: 1px solid var(--border); border-radius: 8px;
+  font-size: .8rem; font-weight: 600; color: var(--navy);
+  cursor: pointer; font-family: inherit; text-align: left;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.history-list { display: none; margin-top: 8px; }
+.history-list.open { display: block; }
+.history-item {
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+  margin-bottom: 6px; font-size: .78rem;
+}
+.history-item-head { display: flex; justify-content: space-between; margin-bottom: 4px; font-weight: 600; }
+.history-item p { color: var(--sub); line-height: 1.45; }
+
+/* ── Backdrop ── */
+#backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 45; }
+
+footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub); border-top: 1px solid var(--border); margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <p>Henter data…</p>
+</div>
+
+<!-- ── Login ── -->
+<div id="loginScreen" style="display:none">
+  <div class="login-card">
+    <div class="icon">🚗</div>
+    <h2>Kjøretøy Dashboard</h2>
+    <p>Kombinert oversikt over flåten fra ABAX og vernerunde-innleveringer. Logg inn med din Industrikran-konto.</p>
+    <button class="ms-btn" onclick="loginWithMicrosoft()">
+      <svg width="20" height="20" viewBox="0 0 21 21" fill="none">
+        <rect x="1" y="1"  width="9" height="9" fill="#f25022"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+      </svg>
+      Logg inn med Microsoft
+    </button>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="appScreen">
+  <div id="errorBanner"></div>
+
+  <header>
+    <div>
+      <h1>🚗 Kjøretøy Dashboard</h1>
+      <p>ABAX flåte + vernerunde-data · <span id="lastUpdated">Laster…</span></p>
+    </div>
+    <div class="header-right">
+      <span class="user-chip" id="userChip"></span>
+      <button class="refresh-btn" id="refreshBtn" onclick="loadData()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+          <path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+          <path d="M3 21v-5h5"/>
+        </svg>
+        Oppdater
+      </button>
+      <button class="logout-btn" onclick="logout()">Logg ut</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- KPI cards -->
+    <div class="section-title">Nøkkeltall</div>
+    <div class="kpi-grid">
+      <div class="kpi navy">
+        <div class="kpi-icon">🚐</div>
+        <div class="kpi-value" id="kpiTotal">–</div>
+        <div class="kpi-label">Totalt antall kjøretøy</div>
+        <div class="kpi-sub">Alle ABAX-enheter</div>
+      </div>
+      <div class="kpi green">
+        <div class="kpi-icon">▶️</div>
+        <div class="kpi-value" id="kpiMoving">–</div>
+        <div class="kpi-label">I bevegelse nå</div>
+        <div class="kpi-sub" id="kpiMovingSub">Sanntid fra ABAX</div>
+      </div>
+      <div class="kpi gold">
+        <div class="kpi-icon">✅</div>
+        <div class="kpi-value" id="kpiInspected">–</div>
+        <div class="kpi-label">Inspektert siste 30 dager</div>
+        <div class="kpi-sub" id="kpiInspectedSub">Vernerunde-skjema</div>
+      </div>
+      <div class="kpi red">
+        <div class="kpi-icon">⚠️</div>
+        <div class="kpi-value" id="kpiDamage">–</div>
+        <div class="kpi-label">Rapporterte skader</div>
+        <div class="kpi-sub">Siste innlevering per bil</div>
+      </div>
+      <div class="kpi amber">
+        <div class="kpi-icon">🔧</div>
+        <div class="kpi-value" id="kpiPkk">–</div>
+        <div class="kpi-label">PKK-frist innen 30 dager</div>
+        <div class="kpi-sub">Krever oppfølging</div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="section-title">Kjøretøyliste</div>
+    <div class="card">
+      <div class="toolbar">
+        <div class="search-box">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" id="searchInput" placeholder="Søk reg.nr, sjåfør, merke…" oninput="applyFilters()">
+        </div>
+        <button class="filter-toggle" id="skaderFilter" onclick="toggleDamageFilter()">
+          ⚠️ Bare med skader
+        </button>
+        <div class="table-count" id="tableCount"></div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table id="mainTable">
+          <thead>
+            <tr>
+              <th onclick="sortTable(0)">Sjåfør <i class="si">↕</i></th>
+              <th onclick="sortTable(1)">Reg.nr <i class="si">↕</i></th>
+              <th onclick="sortTable(2)">Merke / Modell <i class="si">↕</i></th>
+              <th onclick="sortTable(3)">Km ABAX <i class="si">↕</i></th>
+              <th onclick="sortTable(4)">Km skjema <i class="si">↕</i></th>
+              <th onclick="sortTable(5)">Sist inspektert <i class="si">↕</i></th>
+              <th onclick="sortTable(6)">Skader <i class="si">↕</i></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <div class="page-info" id="pageInfo"></div>
+        <div class="page-btns" id="pageBtns"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>Industrikran · ABAX + Vernerunde · <span id="footerDate"></span></footer>
+</div>
+
+<!-- ── Detail panel ── -->
+<div id="backdrop" onclick="closePanel()"></div>
+<div id="detailPanel">
+  <div class="panel-header">
+    <div>
+      <h2 id="panelRegnr">–</h2>
+      <p id="panelVehicle">–</p>
+    </div>
+    <button class="panel-close" onclick="closePanel()">×</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://eeikodpeeybrzgxcsflh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlaWtvZHBlZXlicnpneGNzZmxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMzY3MjcsImV4cCI6MjA5MzYxMjcyN30.nJFkmdOvpHrq2MGaDIyF0GShPBUOnOB9h-cf9-elsTY';
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let allRows     = [];   // merged rows
+let filtered    = [];
+let currentPage = 1;
+const pageSize  = 25;
+let sortCol     = 5;    // default: sist inspektert
+let sortAsc     = false;
+let damageOnly  = false;
+let verneMap    = {};   // regnr → latest vernerunde record
+let verneAll    = {};   // regnr → all vernerunde records (for history)
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function loginWithMicrosoft() {
+  await client.auth.signInWithOAuth({
+    provider: 'azure',
+    options: { redirectTo: window.location.href }
+  });
+}
+
+async function logout() {
+  await client.auth.signOut();
+  showLoginScreen();
+}
+
+function showLoginScreen() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appScreen').style.display   = 'none';
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+function showApp(user) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display   = 'block';
+  const name = user.user_metadata?.full_name || user.user_metadata?.name || user.email || '';
+  document.getElementById('userChip').textContent = name.split(' ')[0] || 'Innlogget';
+}
+
+// ── Load data ─────────────────────────────────────────────────────────────────
+async function loadData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  document.getElementById('errorBanner').style.display = 'none';
+
+  try {
+    const [abaxRes, verneRes] = await Promise.all([
+      client.from('abax_kjoretoy')
+        .select('license_plate,alias,manufacturer,model,driver_name,fuel_type,unit_health,location_in_movement,odometer_value,pkk_kontrollfrist')
+        .order('license_plate'),
+      client.from('kjoretoy_vernerunde')
+        .select('*')
+        .order('created_at', { ascending: false })
+    ]);
+
+    if (abaxRes.error) throw abaxRes.error;
+
+    // Build vernerunde maps
+    verneMap = {};
+    verneAll = {};
+    const verneData = verneRes.data || [];
+    verneData.forEach(r => {
+      const key = (r.registreringsnummer || '').toUpperCase();
+      if (!verneMap[key]) verneMap[key] = r;
+      if (!verneAll[key]) verneAll[key] = [];
+      verneAll[key].push(r);
+    });
+
+    // Merge
+    allRows = (abaxRes.data || []).map(v => {
+      const key = (v.license_plate || '').toUpperCase();
+      const verne = verneMap[key] || null;
+      return { ...v, verne };
+    });
+
+    filtered = [...allRows];
+    currentPage = 1;
+    renderKPIs();
+    applyFilters();
+    updateTimestamp();
+
+  } catch (err) {
+    const b = document.getElementById('errorBanner');
+    b.style.display = 'block';
+    b.textContent = '⚠️ Kunne ikke hente data: ' + (err.message || err);
+  } finally {
+    document.getElementById('loadingOverlay').style.display = 'none';
+    btn.classList.remove('spinning');
+  }
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────────
+function renderKPIs() {
+  const total   = allRows.length;
+  const moving  = allRows.filter(r => r.location_in_movement === true).length;
+  const now     = new Date();
+  const in30days = new Date(now); in30days.setDate(in30days.getDate() + 30);
+  const thirtyAgo = new Date(now); thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+
+  const inspected = allRows.filter(r => r.verne && new Date(r.verne.created_at) >= thirtyAgo).length;
+  const damaged   = allRows.filter(r => r.verne?.har_skader === true).length;
+  const pkk30     = allRows.filter(r => {
+    if (!r.pkk_kontrollfrist) return false;
+    const d = new Date(r.pkk_kontrollfrist);
+    return d >= now && d <= in30days;
+  }).length;
+
+  document.getElementById('kpiTotal').textContent     = total;
+  document.getElementById('kpiMoving').textContent    = moving;
+  document.getElementById('kpiMovingSub').textContent = total ? `${((moving/total)*100).toFixed(0)}% av flåten` : '';
+  document.getElementById('kpiInspected').textContent = inspected;
+  document.getElementById('kpiInspectedSub').textContent = total ? `${inspected} av ${total} kjøretøy` : '';
+  document.getElementById('kpiDamage').textContent    = damaged;
+  document.getElementById('kpiPkk').textContent       = pkk30;
+}
+
+// ── Filters & sort ────────────────────────────────────────────────────────────
+function applyFilters() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  filtered = allRows.filter(r => {
+    if (damageOnly && r.verne?.har_skader !== true) return false;
+    if (!q) return true;
+    return (
+      (r.license_plate  || '').toLowerCase().includes(q) ||
+      (r.driver_name    || '').toLowerCase().includes(q) ||
+      (r.manufacturer   || '').toLowerCase().includes(q) ||
+      (r.model          || '').toLowerCase().includes(q) ||
+      (r.alias          || '').toLowerCase().includes(q)
+    );
+  });
+  sortRows();
+  currentPage = 1;
+  renderTable();
+}
+
+function toggleDamageFilter() {
+  damageOnly = !damageOnly;
+  document.getElementById('skaderFilter').classList.toggle('active', damageOnly);
+  applyFilters();
+}
+
+let sortAscArr = [true,true,true,false,false,false,true];
+function sortTable(col) {
+  if (sortCol === col) sortAscArr[col] = !sortAscArr[col];
+  sortCol = col;
+  sortAscArr[col] = sortAscArr[col] !== undefined ? sortAscArr[col] : true;
+  sortAsc = sortAscArr[col];
+  document.querySelectorAll('thead th').forEach((th, i) => {
+    th.classList.toggle('sorted', i === col);
+    const si = th.querySelector('.si');
+    if (si) si.textContent = i === col ? (sortAscArr[col] ? '↑' : '↓') : '↕';
+  });
+  sortRows();
+  renderTable();
+}
+
+function sortRows() {
+  const asc = sortAscArr[sortCol] !== undefined ? sortAscArr[sortCol] : true;
+  filtered.sort((a, b) => {
+    let av, bv;
+    switch (sortCol) {
+      case 0: av = a.driver_name || ''; bv = b.driver_name || ''; break;
+      case 1: av = a.license_plate || ''; bv = b.license_plate || ''; break;
+      case 2: av = `${a.manufacturer||''} ${a.model||''}`; bv = `${b.manufacturer||''} ${b.model||''}`; break;
+      case 3: av = a.odometer_value || 0; bv = b.odometer_value || 0; break;
+      case 4: av = a.verne?.kilometerstand || 0; bv = b.verne?.kilometerstand || 0; break;
+      case 5: av = a.verne?.created_at || ''; bv = b.verne?.created_at || ''; break;
+      case 6: av = a.verne?.har_skader ? 1 : 0; bv = b.verne?.har_skader ? 1 : 0; break;
+      default: av = ''; bv = '';
+    }
+    if (typeof av === 'string') return asc ? av.localeCompare(bv,'no') : bv.localeCompare(av,'no');
+    return asc ? av - bv : bv - av;
+  });
+}
+
+// ── Render table ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const start = (currentPage - 1) * pageSize;
+  const page  = filtered.slice(start, start + pageSize);
+  const tbody = document.getElementById('tableBody');
+
+  tbody.innerHTML = page.map((r, i) => {
+    const abaxKm = r.odometer_value != null
+      ? Math.round(r.odometer_value / 1000).toLocaleString('no-NO') + ' 000'
+      : '<span class="no-data">–</span>';
+    const skjemaKm = r.verne?.kilometerstand != null
+      ? r.verne.kilometerstand.toLocaleString('no-NO')
+      : '<span class="no-data">–</span>';
+    const inspDate = r.verne?.created_at
+      ? fmtDate(r.verne.created_at)
+      : '<span class="no-data">Ikke inspektert</span>';
+    const damageBadge = r.verne
+      ? (r.verne.har_skader
+          ? '<span class="badge b-red"><span class="dot"></span> Ja</span>'
+          : '<span class="badge b-green"><span class="dot"></span> Nei</span>')
+      : '<span class="badge b-gray">–</span>';
+
+    const globalIdx = start + i;
+    return `<tr onclick="openPanel(${globalIdx})">
+      <td class="td-primary">${esc(r.driver_name || '–')}</td>
+      <td><span class="badge b-navy">${esc(r.license_plate)}</span></td>
+      <td>${esc(r.manufacturer || '')} ${esc(r.model || '')}</td>
+      <td>${abaxKm}</td>
+      <td>${skjemaKm}</td>
+      <td>${inspDate}</td>
+      <td>${damageBadge}</td>
+      <td style="color:var(--sub);font-size:1rem">›</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tableCount').textContent =
+    `${filtered.length} kjøretøy${filtered.length !== allRows.length ? ' (filtrert)' : ''}`;
+
+  renderPagination();
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+function renderPagination() {
+  const total = Math.ceil(filtered.length / pageSize);
+  const start = (currentPage - 1) * pageSize + 1;
+  const end   = Math.min(currentPage * pageSize, filtered.length);
+
+  document.getElementById('pageInfo').textContent =
+    filtered.length ? `Viser ${start}–${end} av ${filtered.length}` : '';
+
+  const btns = document.getElementById('pageBtns');
+  let html = `<button class="pbtn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+  for (let p = Math.max(1,currentPage-2); p <= Math.min(total,currentPage+2); p++) {
+    html += `<button class="pbtn${p===currentPage?' active':''}" onclick="goPage(${p})">${p}</button>`;
+  }
+  html += `<button class="pbtn" onclick="goPage(${currentPage+1})" ${currentPage===total?'disabled':''}>›</button>`;
+  btns.innerHTML = html;
+}
+
+function goPage(p) {
+  const total = Math.ceil(filtered.length / pageSize);
+  if (p < 1 || p > total) return;
+  currentPage = p;
+  renderTable();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Detail panel ──────────────────────────────────────────────────────────────
+function openPanel(idx) {
+  const r = filtered[idx];
+  if (!r) return;
+
+  document.getElementById('panelRegnr').textContent  = r.license_plate;
+  document.getElementById('panelVehicle').textContent =
+    `${r.manufacturer||''} ${r.model||''} · ${r.driver_name||'Ukjent sjåfør'}`;
+
+  const v = r.verne;
+  const key = (r.license_plate || '').toUpperCase();
+  const history = (verneAll[key] || []).slice(1); // everything except latest
+
+  let html = '';
+
+  // ── Vehicle info ──
+  html += `<div class="panel-section">
+    <div class="panel-section-title">Kjøretøyinfo (ABAX)</div>
+    <div class="detail-row"><span class="detail-label">Drivstoff</span><span class="detail-value">${fuelLabel(r.fuel_type)}</span></div>
+    <div class="detail-row"><span class="detail-label">Km (ABAX)</span><span class="detail-value">${r.odometer_value != null ? Math.round(r.odometer_value/1000).toLocaleString('no-NO')+' 000 km' : '–'}</span></div>
+    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${healthBadge(r.unit_health)}</span></div>
+    ${r.pkk_kontrollfrist ? `<div class="detail-row"><span class="detail-label">PKK-frist</span><span class="detail-value">${fmtDate(r.pkk_kontrollfrist)}</span></div>` : ''}
+  </div>`;
+
+  if (!v) {
+    html += `<div class="panel-section"><p style="color:var(--sub);font-size:.85rem;text-align:center;padding:20px 0">Ingen vernerunde-skjema registrert for dette kjøretøyet.</p></div>`;
+  } else {
+    // ── Latest inspection ──
+    html += `<div class="panel-section">
+      <div class="panel-section-title">Siste inspeksjon – ${fmtDate(v.created_at)}</div>
+      <div class="detail-row"><span class="detail-label">Innsendt av</span><span class="detail-value">${esc(v.opprettet_av||'–')}</span></div>
+      <div class="detail-row"><span class="detail-label">Km (skjema)</span><span class="detail-value">${v.kilometerstand!=null ? v.kilometerstand.toLocaleString('no-NO')+' km' : '–'}</span></div>
+      <div class="detail-row"><span class="detail-label">Synlige skader</span><span class="detail-value">${v.har_skader ? '<span class="badge b-red">Ja</span>' : '<span class="badge b-green">Nei</span>'}</span></div>
+      ${v.har_skader && v.skadebeskrivelse ? `<div style="margin-top:10px;padding:10px 12px;background:#fff8f8;border-radius:8px;border:1px solid #fecaca;font-size:.8rem;line-height:1.55;color:var(--red)">${esc(v.skadebeskrivelse)}</div>` : ''}
+      ${v.vil_legge_til_mer && v.annet ? `<div style="margin-top:8px;padding:10px 12px;background:#f9fafb;border-radius:8px;border:1px solid var(--border);font-size:.8rem;line-height:1.55">${esc(v.annet)}</div>` : ''}
+    </div>`;
+
+    // ── Photos ──
+    const photoGroups = [
+      { label: 'Front',        urls: v.bilder_front },
+      { label: 'Ute bak',      urls: v.bilder_ute_bak },
+      { label: 'Ute front',    urls: v.bilder_ute_front },
+      { label: 'Høyre side',   urls: v.bilder_ute_hoeyre },
+      { label: 'Venstre side', urls: v.bilder_ute_venstre },
+      { label: 'Interiør',     urls: v.bilder_interior },
+      { label: 'Skadebilder',  urls: v.bilder_skade },
+    ].filter(g => g.urls && g.urls.length > 0);
+
+    if (photoGroups.length) {
+      html += `<div class="panel-section"><div class="panel-section-title">Bilder</div>`;
+      photoGroups.forEach(g => {
+        html += `<div class="gallery-group-label">${g.label}</div>
+          <div class="photo-gallery">
+            ${g.urls.map(u => `<a href="${u}" target="_blank"><img src="${u}" loading="lazy" alt="${g.label}"></a>`).join('')}
+          </div>`;
+      });
+      html += `</div>`;
+    }
+  }
+
+  // ── History ──
+  if (history.length > 0) {
+    html += `<div class="panel-section">
+      <button class="history-toggle" onclick="toggleHistory(this)">
+        Tidligere innleveringer (${history.length}) <span>▼</span>
+      </button>
+      <div class="history-list">
+        ${history.map(h => `
+          <div class="history-item">
+            <div class="history-item-head">
+              <span>${fmtDate(h.created_at)}</span>
+              <span>${h.har_skader ? '<span class="badge b-red">Skade</span>' : '<span class="badge b-green">OK</span>'}</span>
+            </div>
+            <p>${esc(h.opprettet_av||'')} · ${h.kilometerstand!=null ? h.kilometerstand.toLocaleString('no-NO')+' km' : '–'}</p>
+            ${h.skadebeskrivelse ? `<p style="margin-top:4px;color:var(--red)">${esc(h.skadebeskrivelse)}</p>` : ''}
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('panelBody').innerHTML = html;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('backdrop').style.display = 'block';
+}
+
+function closePanel() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('backdrop').style.display = 'none';
+}
+
+function toggleHistory(btn) {
+  const list = btn.nextElementSibling;
+  list.classList.toggle('open');
+  btn.querySelector('span').textContent = list.classList.contains('open') ? '▲' : '▼';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtDate(d) {
+  if (!d) return '–';
+  return new Date(d).toLocaleDateString('no-NO', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+function fuelLabel(f) {
+  return { Diesel:'Diesel', Electricity:'Elektrisk', PetrolHybrid:'Plug-in hybrid', Unknown:'Ukjent' }[f] || f || 'Ukjent';
+}
+
+function healthBadge(h) {
+  if (!h)               return '<span class="badge b-gray">Ukjent</span>';
+  if (h==='Healthy')    return '<span class="badge b-green"><span class="dot"></span> OK</span>';
+  if (h==='Unhealthy')  return '<span class="badge b-red"><span class="dot"></span> Feil</span>';
+  if (h==='Degraded')   return '<span class="badge b-amber"><span class="dot"></span> Degradert</span>';
+  return `<span class="badge b-gray">${h}</span>`;
+}
+
+function updateTimestamp() {
+  const now = new Date().toLocaleString('no-NO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+  document.getElementById('lastUpdated').textContent = 'Sist oppdatert ' + now;
+  document.getElementById('footerDate').textContent = now;
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  const { data: { session } } = await client.auth.getSession();
+  if (session?.user) {
+    showApp(session.user);
+    await loadData();
+  } else {
+    document.getElementById('loadingOverlay').style.display = 'none';
+    showLoginScreen();
+  }
+
+  client.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session?.user) {
+      showApp(session.user);
+      await loadData();
+    } else if (event === 'SIGNED_OUT') {
+      showLoginScreen();
+    }
+  });
+}
+
+init();
+</script>
+</body>
+</html>

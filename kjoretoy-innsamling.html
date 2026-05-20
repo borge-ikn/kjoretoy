@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Kjøretøy Vernerunde – Industrikran</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy:   #1c3461;
+  --gold:   #e8a01c;
+  --green:  #059669;
+  --red:    #dc2626;
+  --border: #d1d5db;
+  --bg:     #f3f4f6;
+  --card:   #ffffff;
+  --text:   #111827;
+  --sub:    #6b7280;
+  --radius: 12px;
+}
+
+html, body { min-height: 100%; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg); color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ── Header ── */
+.app-header {
+  background: var(--navy); color: #fff;
+  padding: 16px 20px; display: flex; align-items: center;
+  justify-content: space-between; position: sticky; top: 0; z-index: 50;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+.app-header h1 { font-size: 1.05rem; font-weight: 700; }
+.app-header p  { font-size: .72rem; opacity: .8; margin-top: 2px; }
+.logout-btn {
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3);
+  color: #fff; border-radius: 20px; padding: 6px 12px; font-size: .75rem;
+  font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.user-chip {
+  background: rgba(232,160,28,.25); border: 1px solid rgba(232,160,28,.5);
+  color: #fef3c7; border-radius: 20px; padding: 4px 10px;
+  font-size: .72rem; font-weight: 600; max-width: 150px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Login screen ── */
+#loginScreen {
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 32px 24px;
+  background: var(--navy);
+}
+.login-card {
+  background: #fff; border-radius: 16px; padding: 36px 28px;
+  width: 100%; max-width: 380px; text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,.25);
+}
+.login-logo { font-size: 3rem; margin-bottom: 12px; }
+.login-card h2 { font-size: 1.2rem; color: var(--navy); margin-bottom: 6px; }
+.login-card p  { font-size: .85rem; color: var(--sub); margin-bottom: 28px; line-height: 1.5; }
+.ms-btn {
+  width: 100%; padding: 14px; border: 2px solid var(--navy);
+  background: var(--navy); color: #fff; border-radius: 10px;
+  font-size: .95rem; font-weight: 600; cursor: pointer;
+  font-family: inherit; display: flex; align-items: center;
+  justify-content: center; gap: 10px; transition: background .15s;
+}
+.ms-btn:hover { background: #162a50; }
+.ms-btn svg { flex-shrink: 0; }
+
+/* ── Main content ── */
+#formScreen { display: none; }
+#successScreen { display: none; min-height: 100vh; background: var(--navy); }
+
+.form-body { padding: 20px 16px 100px; max-width: 600px; margin: 0 auto; }
+
+/* ── Cards ── */
+.card {
+  background: var(--card); border-radius: var(--radius);
+  border: 1px solid var(--border); margin-bottom: 16px;
+  overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.card-header {
+  background: var(--navy); color: #fff;
+  padding: 12px 16px; font-size: .82rem; font-weight: 700;
+  letter-spacing: .04em; display: flex; align-items: center; gap: 8px;
+}
+.card-body { padding: 16px; }
+
+/* ── Fields ── */
+.field { margin-bottom: 18px; }
+.field:last-child { margin-bottom: 0; }
+.field-label {
+  display: block; font-size: .8rem; font-weight: 600;
+  color: var(--navy); margin-bottom: 6px;
+}
+.field-label .req { color: var(--red); margin-left: 2px; }
+
+select, input[type="number"], textarea {
+  width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+  border-radius: 8px; font-size: .9rem; font-family: inherit;
+  color: var(--text); background: #fff; outline: none;
+  transition: border-color .15s, box-shadow .15s; -webkit-appearance: none;
+}
+select:focus, input[type="number"]:focus, textarea:focus {
+  border-color: var(--navy); box-shadow: 0 0 0 3px rgba(28,52,97,.12);
+}
+textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
+
+/* ── Toggle (Ja/Nei) ── */
+.toggle-wrap { display: flex; gap: 10px; }
+.toggle-option {
+  flex: 1; padding: 11px; border: 1.5px solid var(--border); border-radius: 8px;
+  text-align: center; font-size: .9rem; font-weight: 600; cursor: pointer;
+  transition: all .15s; background: #f9fafb; color: var(--sub);
+  -webkit-tap-highlight-color: transparent;
+}
+.toggle-option.active-ja  { border-color: var(--red);   background: #fef2f2; color: var(--red); }
+.toggle-option.active-nei { border-color: var(--green);  background: #f0fdf4; color: var(--green); }
+
+/* ── Expandable section ── */
+.expand-section { display: none; padding-top: 14px; border-top: 1px solid var(--border); margin-top: 14px; }
+.expand-section.open { display: block; }
+
+/* ── Photo field ── */
+.photo-field { }
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.thumb-wrap { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; }
+.thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb-remove {
+  position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+  background: rgba(0,0,0,.6); color: #fff; border: none; border-radius: 50%;
+  font-size: .9rem; line-height: 1; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; font-weight: 700;
+}
+.add-photo-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 12px; border: 1.5px dashed var(--border);
+  border-radius: 8px; background: #f9fafb; color: var(--navy);
+  font-size: .85rem; font-weight: 600; cursor: pointer;
+  transition: border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.add-photo-btn:hover { border-color: var(--navy); background: #eef2f9; }
+
+/* ── Submit ── */
+.submit-wrap {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  padding: 12px 16px; background: #fff;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+}
+.submit-btn {
+  width: 100%; max-width: 600px; margin: 0 auto;
+  display: block; padding: 15px; background: var(--gold);
+  border: none; border-radius: 10px; color: #1c3461;
+  font-size: 1rem; font-weight: 700; cursor: pointer;
+  font-family: inherit; letter-spacing: .02em;
+  transition: background .15s; -webkit-tap-highlight-color: transparent;
+}
+.submit-btn:hover { background: #d4911a; }
+.submit-btn:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; }
+
+/* ── Progress ── */
+.progress-wrap { margin-bottom: 10px; display: none; }
+.progress-bar { height: 4px; background: #e5e7eb; border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--gold); border-radius: 99px; transition: width .2s; }
+.progress-label { font-size: .72rem; color: var(--sub); margin-top: 4px; text-align: center; }
+
+/* ── Success screen ── */
+.success-content {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 100vh; padding: 32px 24px; text-align: center;
+}
+.success-icon { font-size: 4rem; margin-bottom: 20px; }
+.success-content h2 { color: #fff; font-size: 1.4rem; margin-bottom: 10px; }
+.success-content p  { color: rgba(255,255,255,.75); font-size: .9rem; margin-bottom: 32px; line-height: 1.6; }
+.new-btn {
+  padding: 14px 32px; background: var(--gold); border: none;
+  border-radius: 10px; color: var(--navy); font-size: .95rem;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+}
+
+/* ── Spinner overlay ── */
+#uploadOverlay {
+  display: none; position: fixed; inset: 0; background: rgba(28,52,97,.85);
+  z-index: 100; flex-direction: column; align-items: center;
+  justify-content: center; gap: 16px; color: #fff;
+}
+#uploadOverlay.show { display: flex; }
+.spin { width: 48px; height: 48px; border: 4px solid rgba(255,255,255,.3); border-top-color: var(--gold); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#uploadOverlay p { font-size: .9rem; opacity: .9; }
+
+/* ── Error toast ── */
+#errorToast {
+  display: none; position: fixed; bottom: 80px; left: 16px; right: 16px;
+  background: var(--red); color: #fff; border-radius: 10px;
+  padding: 12px 16px; font-size: .85rem; z-index: 200;
+  box-shadow: 0 4px 16px rgba(0,0,0,.25);
+}
+</style>
+</head>
+<body>
+
+<!-- ── Upload overlay ── -->
+<div id="uploadOverlay">
+  <div class="spin"></div>
+  <p id="uploadStatus">Laster opp…</p>
+</div>
+
+<!-- ── Error toast ── -->
+<div id="errorToast"></div>
+
+<!-- ══════════════════════════════════════════════
+     LOGIN SCREEN
+═══════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">🚐</div>
+    <h2>Kjøretøy Vernerunde</h2>
+    <p>Registrer kjøretøytilstand under vernerunden. Logg inn med din Industrikran-konto.</p>
+    <button class="ms-btn" onclick="loginWithMicrosoft()">
+      <svg width="20" height="20" viewBox="0 0 21 21" fill="none">
+        <rect x="1" y="1"  width="9" height="9" fill="#f25022"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+      </svg>
+      Logg inn med Microsoft
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     FORM SCREEN
+═══════════════════════════════════════════════ -->
+<div id="formScreen">
+  <header class="app-header">
+    <div>
+      <h1>🚐 Vernerunde</h1>
+      <p id="userName">Laster…</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="user-chip" id="userChip"></span>
+      <button class="logout-btn" onclick="logout()">Logg ut</button>
+    </div>
+  </header>
+
+  <div class="form-body">
+
+    <!-- CARD: Kjøretøy -->
+    <div class="card">
+      <div class="card-header">🚗 Kjøretøy</div>
+      <div class="card-body">
+        <div class="field">
+          <label class="field-label" for="regnrSelect">Registreringsnummer<span class="req">*</span></label>
+          <select id="regnrSelect" onchange="onVehicleSelect()">
+            <option value="">– Velg kjøretøy –</option>
+          </select>
+          <div id="vehicleInfo" style="margin-top:8px;font-size:.78rem;color:var(--sub)"></div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="kmInput">Kilometerstand<span class="req">*</span></label>
+          <input type="number" id="kmInput" placeholder="f.eks. 112346" min="0" max="9999999" inputmode="numeric">
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD: Bilder -->
+    <div class="card">
+      <div class="card-header">📸 Bilder av kjøretøy</div>
+      <div class="card-body">
+        <div class="field" id="pf-front"></div>
+        <div class="field" id="pf-bak"></div>
+        <div class="field" id="pf-ute-front"></div>
+        <div class="field" id="pf-hoeyre"></div>
+        <div class="field" id="pf-venstre"></div>
+        <div class="field" id="pf-interior"></div>
+      </div>
+    </div>
+
+    <!-- CARD: Skader -->
+    <div class="card">
+      <div class="card-header">⚠️ Skader</div>
+      <div class="card-body">
+        <div class="field">
+          <label class="field-label">Har bilen synlige skader?<span class="req">*</span></label>
+          <div class="toggle-wrap">
+            <div class="toggle-option" id="tog-skader-ja"  onclick="setToggle('skader','ja')">✗ Ja</div>
+            <div class="toggle-option" id="tog-skader-nei" onclick="setToggle('skader','nei')">✓ Nei</div>
+          </div>
+        </div>
+        <div class="expand-section" id="exp-skader">
+          <div class="field">
+            <label class="field-label" for="skadebesk">Skadebeskrivelse</label>
+            <textarea id="skadebesk" placeholder="Beskriv skaden…"></textarea>
+          </div>
+          <div class="field" id="pf-skade"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD: Tillegg -->
+    <div class="card">
+      <div class="card-header">📝 Tilleggsinformasjon</div>
+      <div class="card-body">
+        <div class="field">
+          <label class="field-label">Vil du legge til mer?</label>
+          <div class="toggle-wrap">
+            <div class="toggle-option" id="tog-mer-ja"  onclick="setToggle('mer','ja')">Ja</div>
+            <div class="toggle-option" id="tog-mer-nei" onclick="setToggle('mer','nei')">Nei</div>
+          </div>
+        </div>
+        <div class="expand-section" id="exp-mer">
+          <div class="field">
+            <label class="field-label" for="annetText">Annet</label>
+            <textarea id="annetText" placeholder="Andre kommentarer om kjøretøyet…"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /form-body -->
+
+  <div class="submit-wrap">
+    <button class="submit-btn" id="submitBtn" onclick="submitForm()">Send inn</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SUCCESS SCREEN
+═══════════════════════════════════════════════ -->
+<div id="successScreen">
+  <div class="success-content">
+    <div class="success-icon">✅</div>
+    <h2>Innlevert!</h2>
+    <p id="successMsg">Kjøretøyrapporten er lagret.<br>Takk for registreringen.</p>
+    <button class="new-btn" onclick="resetForm()">Ny innlevering</button>
+  </div>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://eeikodpeeybrzgxcsflh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlaWtvZHBlZXlicnpneGNzZmxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMzY3MjcsImV4cCI6MjA5MzYxMjcyN30.nJFkmdOvpHrq2MGaDIyF0GShPBUOnOB9h-cf9-elsTY';
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── Photo field registry ──────────────────────────────────────────────────────
+const photoFields = {};
+
+function createPhotoField(containerId, key, label) {
+  const container = document.getElementById(containerId);
+  photoFields[key] = { files: [], key };
+
+  container.innerHTML = `
+    <label class="field-label">${label}</label>
+    <div class="photo-grid" id="grid-${key}"></div>
+    <label class="add-photo-btn" for="inp-${key}">
+      📷 Legg til bilde
+      <input type="file" id="inp-${key}" accept="image/*" multiple
+             style="position:absolute;width:1px;height:1px;opacity:0"
+             onchange="addPhotos('${key}', this.files); this.value=''">
+    </label>
+  `;
+}
+
+function addPhotos(key, fileList) {
+  Array.from(fileList).forEach(f => photoFields[key].files.push(f));
+  renderGrid(key);
+}
+
+function removePhoto(key, idx) {
+  photoFields[key].files.splice(idx, 1);
+  renderGrid(key);
+}
+
+function renderGrid(key) {
+  const grid = document.getElementById(`grid-${key}`);
+  if (!grid) return;
+  grid.innerHTML = photoFields[key].files.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="thumb-wrap">
+      <img src="${url}" loading="lazy">
+      <button class="thumb-remove" onclick="removePhoto('${key}',${i})">×</button>
+    </div>`;
+  }).join('');
+}
+
+// ── Toggle ────────────────────────────────────────────────────────────────────
+const toggleState = { skader: null, mer: null };
+
+function setToggle(group, val) {
+  toggleState[group] = val;
+  const ja  = document.getElementById(`tog-${group}-ja`);
+  const nei = document.getElementById(`tog-${group}-nei`);
+  ja.className  = 'toggle-option' + (val === 'ja'  ? ' active-ja'  : '');
+  nei.className = 'toggle-option' + (val === 'nei' ? ' active-nei' : '');
+  const exp = document.getElementById(`exp-${group}`);
+  if (exp) exp.classList.toggle('open', val === 'ja');
+}
+
+// ── Vehicle select ────────────────────────────────────────────────────────────
+let vehicles = [];
+
+function onVehicleSelect() {
+  const regnr = document.getElementById('regnrSelect').value;
+  const info  = document.getElementById('vehicleInfo');
+  const v = vehicles.find(x => x.license_plate === regnr);
+  if (v) {
+    const km = v.odometer_value ? Math.round(v.odometer_value / 1000).toLocaleString('no-NO') + ' 000 km' : '–';
+    info.textContent = `${v.manufacturer || ''} ${v.model || ''} · Sjåfør: ${v.driver_name || '–'} · ABAX km: ${km}`;
+  } else {
+    info.textContent = '';
+  }
+}
+
+async function loadVehicles() {
+  const { data, error } = await client
+    .from('abax_kjoretoy')
+    .select('license_plate,alias,manufacturer,model,driver_name,odometer_value')
+    .order('license_plate');
+  if (error || !data) return;
+  vehicles = data;
+  const sel = document.getElementById('regnrSelect');
+  data.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.license_plate;
+    opt.textContent = `${v.license_plate}${v.alias ? ' – ' + v.alias : ''}${v.driver_name ? ' (' + v.driver_name + ')' : ''}`;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function loginWithMicrosoft() {
+  await client.auth.signInWithOAuth({
+    provider: 'azure',
+    options: { redirectTo: window.location.href }
+  });
+}
+
+async function logout() {
+  await client.auth.signOut();
+  showLogin();
+}
+
+function showLogin() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('formScreen').style.display  = 'none';
+  document.getElementById('successScreen').style.display = 'none';
+}
+
+function showForm(user) {
+  document.getElementById('loginScreen').style.display   = 'none';
+  document.getElementById('formScreen').style.display    = 'block';
+  document.getElementById('successScreen').style.display = 'none';
+
+  const name = user.user_metadata?.full_name || user.user_metadata?.name || user.email || '';
+  document.getElementById('userName').textContent = name;
+  document.getElementById('userChip').textContent = name.split(' ')[0] || 'Innlogget';
+}
+
+// ── Upload helpers ────────────────────────────────────────────────────────────
+async function uploadField(key, regnr, ts) {
+  const field = photoFields[key];
+  const urls  = [];
+  for (const file of field.files) {
+    const ext  = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+    const path = `${regnr}/${ts}/${key}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await client.storage
+      .from('vernerunde-bilder')
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (error) throw new Error(`Bildeupload feilet (${key}): ${error.message}`);
+    urls.push(`${SUPABASE_URL}/storage/v1/object/public/vernerunde-bilder/${path}`);
+  }
+  return urls;
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+async function submitForm() {
+  const regnr = document.getElementById('regnrSelect').value.trim();
+  const km    = document.getElementById('kmInput').value;
+
+  if (!regnr) { showError('Velg et kjøretøy.'); return; }
+  if (!km)    { showError('Fyll inn kilometerstand.'); return; }
+  if (!toggleState.skader) { showError('Angi om bilen har synlige skader.'); return; }
+
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) { showError('Ikke innlogget.'); return; }
+
+  setUploading(true, 'Laster opp bilder…');
+  document.getElementById('submitBtn').disabled = true;
+
+  try {
+    const ts = Date.now().toString();
+    const fieldKeys = ['front','bak','ute-front','hoeyre','venstre','interior','skade'];
+
+    let total = fieldKeys.reduce((s, k) => s + (photoFields[k]?.files.length || 0), 0);
+    let done  = 0;
+
+    const uploadOne = async (key) => {
+      const urls = await uploadField(key, regnr, ts);
+      done += photoFields[key]?.files.length || 0;
+      setUploading(true, `Laster opp bilder… (${done}/${total})`);
+      return urls;
+    };
+
+    const [
+      urlsFront, urlsBak, urlsUFront, urlsHoeyre,
+      urlsVenstre, urlsInterior, urlsSkade
+    ] = await Promise.all(fieldKeys.map(uploadOne));
+
+    setUploading(true, 'Lagrer skjema…');
+
+    const harSkader = toggleState.skader === 'ja';
+    const vilMer    = toggleState.mer     === 'ja';
+
+    const { error } = await client.from('kjoretoy_vernerunde').insert({
+      opprettet_av:        user.user_metadata?.full_name || user.user_metadata?.name || user.email,
+      bruker_epost:        user.email,
+      registreringsnummer: regnr,
+      kilometerstand:      parseInt(km),
+      har_skader:          harSkader,
+      skadebeskrivelse:    harSkader ? document.getElementById('skadebesk').value.trim() : null,
+      vil_legge_til_mer:   vilMer,
+      annet:               vilMer   ? document.getElementById('annetText').value.trim() : null,
+      bilder_front:        urlsFront,
+      bilder_ute_bak:      urlsBak,
+      bilder_ute_front:    urlsUFront,
+      bilder_ute_hoeyre:   urlsHoeyre,
+      bilder_ute_venstre:  urlsVenstre,
+      bilder_interior:     urlsInterior,
+      bilder_skade:        urlsSkade,
+    });
+
+    if (error) throw new Error(error.message);
+
+    setUploading(false);
+    showSuccess(regnr);
+
+  } catch (err) {
+    setUploading(false);
+    document.getElementById('submitBtn').disabled = false;
+    showError(err.message || 'Noe gikk galt. Prøv igjen.');
+  }
+}
+
+function showSuccess(regnr) {
+  document.getElementById('formScreen').style.display    = 'none';
+  document.getElementById('successScreen').style.display = 'block';
+  document.getElementById('successMsg').innerHTML =
+    `Kjøretøyrapporten for <strong>${regnr}</strong> er lagret.<br>Takk for registreringen.`;
+}
+
+function resetForm() {
+  document.getElementById('regnrSelect').value    = '';
+  document.getElementById('kmInput').value        = '';
+  document.getElementById('vehicleInfo').textContent = '';
+  document.getElementById('skadebesk').value      = '';
+  document.getElementById('annetText').value      = '';
+  document.getElementById('submitBtn').disabled   = false;
+
+  Object.keys(photoFields).forEach(k => {
+    photoFields[k].files = [];
+    renderGrid(k);
+  });
+
+  setToggle('skader', null);
+  toggleState.skader = null;
+  toggleState.mer    = null;
+  document.getElementById(`tog-skader-ja`).className  = 'toggle-option';
+  document.getElementById(`tog-skader-nei`).className = 'toggle-option';
+  document.getElementById(`tog-mer-ja`).className     = 'toggle-option';
+  document.getElementById(`tog-mer-nei`).className    = 'toggle-option';
+  document.getElementById('exp-skader').classList.remove('open');
+  document.getElementById('exp-mer').classList.remove('open');
+
+  document.getElementById('formScreen').style.display    = 'block';
+  document.getElementById('successScreen').style.display = 'none';
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setUploading(on, msg) {
+  const ov = document.getElementById('uploadOverlay');
+  ov.classList.toggle('show', on);
+  if (msg) document.getElementById('uploadStatus').textContent = msg;
+}
+
+let errorTimer;
+function showError(msg) {
+  const t = document.getElementById('errorToast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(errorTimer);
+  errorTimer = setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  // Build photo fields
+  createPhotoField('pf-front',    'front',     'Bilde front');
+  createPhotoField('pf-bak',      'bak',       'Bilde ute bak');
+  createPhotoField('pf-ute-front','ute-front',  'Bilde ute front');
+  createPhotoField('pf-hoeyre',   'hoeyre',    'Bilde ute høyre');
+  createPhotoField('pf-venstre',  'venstre',   'Bilde ute venstre');
+  createPhotoField('pf-interior', 'interior',  'Bilder interiør');
+  createPhotoField('pf-skade',    'skade',     'Bilder av skade');
+
+  // Check session
+  const { data: { session } } = await client.auth.getSession();
+  if (session?.user) {
+    showForm(session.user);
+    await loadVehicles();
+  } else {
+    showLogin();
+  }
+
+  // Listen for auth changes (handles OAuth redirect)
+  client.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session?.user) {
+      showForm(session.user);
+      await loadVehicles();
+    } else if (event === 'SIGNED_OUT') {
+      showLogin();
+    }
+  });
+}
+
+init();
+</script>
+</body>
+</html>
