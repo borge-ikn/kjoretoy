@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Netlify CLI
+        run: npm install -g netlify-cli
       - name: Deploy to Netlify
-        uses: netlify/actions/cli@master
-        with:
-          args: deploy --prod --dir=. --message="${{ github.event.head_commit.message }}"
+        run: netlify deploy --prod --dir=. --message="${{ github.event.head_commit.message }}"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: da6900b5-a1bd-4dd9-bea5-e1b1e84258c4
