@@ -305,6 +305,39 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
 
 @media (max-width: 900px) { #kostnad-seksjonen { grid-template-columns: 1fr; } }
 
+/* ── Drivstoffavvik ── */
+#avvik-seksjonen { margin-bottom: 28px; }
+.avvik-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.avvik-card {
+  background: var(--card); border: 1px solid #fca5a5;
+  border-left: 4px solid var(--red); border-radius: var(--radius);
+  padding: 16px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.avvik-card.moderat { border-color: #fcd34d; border-left-color: var(--amber); }
+.avvik-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.avvik-card-regnr { font-weight: 700; font-size: .95rem; color: var(--text); }
+.avvik-card-alias { font-size: .75rem; color: var(--sub); margin-top: 1px; }
+.avvik-ratio {
+  font-size: .72rem; font-weight: 700; padding: 3px 8px;
+  border-radius: 99px; white-space: nowrap;
+  background: var(--red-lt); color: var(--red);
+}
+.avvik-ratio.moderat { background: var(--amber-lt); color: var(--amber); }
+.avvik-card-tall { display: flex; gap: 20px; font-size: .8rem; margin-bottom: 12px; }
+.avvik-tall-item { display: flex; flex-direction: column; gap: 2px; }
+.avvik-tall-label { font-size: .68rem; color: var(--sub); text-transform: uppercase; letter-spacing: .05em; }
+.avvik-tall-value { font-weight: 700; }
+.avvik-tall-value.hoy { color: var(--red); }
+.avvik-tall-value.moderat { color: var(--amber); }
+/* Mini sparkline bars */
+.avvik-spark { display: flex; align-items: flex-end; gap: 3px; height: 40px; }
+.avvik-bar { flex: 1; border-radius: 2px 2px 0 0; min-height: 3px; opacity: .55; transition: opacity .15s; }
+.avvik-bar.aktiv { opacity: 1; }
+.avvik-bar-label { font-size: .6rem; color: var(--sub); text-align: center; margin-top: 3px; }
+.avvik-spark-wrap { display: flex; flex-direction: column; }
+.avvik-spark-cols { display: flex; gap: 3px; align-items: flex-end; height: 40px; }
+.ingen-avvik { color: var(--sub); font-size: .85rem; padding: 14px 0; }
+
 /* ── Lightbox ── */
 #lightbox {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92);
@@ -451,6 +484,14 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
         <div id="donutWrap">
           <canvas id="donutChart"></canvas>
         </div>
+      </div>
+    </div>
+
+    <!-- Drivstoffavvik -->
+    <div id="avvik-seksjonen">
+      <div class="section-title">⚠️ Drivstoff – avvikende forbruk</div>
+      <div class="avvik-grid" id="avvikGrid">
+        <div class="ingen-avvik">Laster…</div>
       </div>
     </div>
 
@@ -622,6 +663,11 @@ async function loadData() {
 
     renderKPIs();
     renderGrafer();
+
+    // Drivstoffavvik – last historikk og beregn
+    if (!_drivstoffHistorikk) _drivstoffHistorikk = await lastDrivstoffHistorikk();
+    renderAvviksDrivstoff(beregnAvvik(_drivstoffHistorikk));
+
     applyFilters();
     updateTimestamp();
 
@@ -1069,6 +1115,116 @@ async function oppdaterKostnader() {
   for (const row of allRows) {
     row.kostnad = kostnadMap[(row.license_plate || '').toUpperCase()] || null;
   }
+}
+
+// ── Drivstoffavvik ────────────────────────────────────────────────────────────
+let _drivstoffHistorikk = null; // lastes én gang ved oppstart
+
+async function lastDrivstoffHistorikk() {
+  const { data, error } = await client
+    .from('po_kontotransaksjoner')
+    .select('description,amount,posting_date')
+    .in('account_no', [7000, 7006, 7007])
+    .eq('is_reversed', false)
+    .not('description', 'is', null);
+  if (error) { console.error('Drivstoff-historikk feil:', error); return {}; }
+  const regnrRe = /^[A-ZÆØÅ]{2}[0-9]{5}$/i;
+  const hist = {};
+  for (const t of (data || [])) {
+    if (!regnrRe.test(t.description)) continue;
+    const regnr  = t.description.toUpperCase();
+    const maaned = t.posting_date?.slice(0, 7); // "YYYY-MM"
+    if (!maaned) continue;
+    if (!hist[regnr]) hist[regnr] = {};
+    hist[regnr][maaned] = (hist[regnr][maaned] || 0) + (parseFloat(t.amount) || 0);
+  }
+  return hist;
+}
+
+function beregnAvvik(hist) {
+  const avvik = [];
+  const naa   = new Date();
+  const grense = new Date(naa); grense.setMonth(grense.getMonth() - 6);
+  const grenseMaaned = grense.toISOString().slice(0, 7);
+
+  for (const [regnr, maaneder] of Object.entries(hist)) {
+    const entries = Object.entries(maaneder)
+      .map(([m, v]) => ({ m, v: Math.round(v) }))
+      .filter(e => e.v > 0)
+      .sort((a, b) => a.m.localeCompare(b.m));
+    if (entries.length < 3) continue; // trenger baseline
+
+    const beløp  = entries.map(e => e.v).sort((a, b) => a - b);
+    const median = beløp[Math.floor(beløp.length / 2)];
+    if (median < 300) continue; // ignorer biler med svært lave normalverdier
+
+    for (const e of entries) {
+      if (e.m < grenseMaaned) continue; // kun siste 6 mnd
+      const ratio = e.v / median;
+      if (ratio < 2.0) continue; // terskel: 2× medianen
+      avvik.push({ regnr, maaned: e.m, kostnad: e.v, median, ratio, entries });
+    }
+  }
+  return avvik.sort((a, b) => b.ratio - a.ratio);
+}
+
+function renderAvviksDrivstoff(avvik) {
+  const grid = document.getElementById('avvikGrid');
+  if (!avvik.length) {
+    grid.innerHTML = '<div class="ingen-avvik">Ingen vesentlige avvik i drivstofforbruk de siste 6 månedene.</div>';
+    return;
+  }
+
+  const aliasMap = {};
+  allRows.forEach(r => { if (r.license_plate) aliasMap[r.license_plate.toUpperCase()] = r.alias || r.driver_name || ''; });
+
+  grid.innerHTML = avvik.map(a => {
+    const moderat  = a.ratio < 3;
+    const cls      = moderat ? 'moderat' : '';
+    const alias    = aliasMap[a.regnr] || '';
+    const mndLabel = new Date(a.maaned + '-01').toLocaleDateString('no-NO', { month: 'short', year: '2-digit' });
+
+    // Sparkline: vis alle måneder, fremhev avviksmåneden
+    const maks = Math.max(...a.entries.map(e => e.v));
+    const visMnd = a.entries.slice(-12); // maks 12 søyler
+    const bars = visMnd.map(e => {
+      const hPst   = Math.max(5, Math.round((e.v / maks) * 100));
+      const aktiv  = e.m === a.maaned;
+      const farge  = aktiv ? (moderat ? '#d97706' : '#dc2626') : '#93c5fd';
+      const label  = e.m.slice(5); // "MM"
+      return `<div style="display:flex;flex-direction:column;align-items:center;flex:1">
+        <div class="avvik-bar${aktiv ? ' aktiv' : ''}" style="height:${hPst}%;background:${farge};width:100%"></div>
+        <div class="avvik-bar-label">${aktiv ? '<b>' + label + '</b>' : label}</div>
+      </div>`;
+    }).join('');
+
+    return `<div class="avvik-card ${cls}">
+      <div class="avvik-card-head">
+        <div>
+          <div class="avvik-card-regnr">${a.regnr}</div>
+          ${alias ? `<div class="avvik-card-alias">${esc(alias)}</div>` : ''}
+        </div>
+        <div class="avvik-ratio ${cls}">${a.ratio.toFixed(1)}× normalen</div>
+      </div>
+      <div class="avvik-card-tall">
+        <div class="avvik-tall-item">
+          <span class="avvik-tall-label">Avviksmåned</span>
+          <span class="avvik-tall-value">${mndLabel}</span>
+        </div>
+        <div class="avvik-tall-item">
+          <span class="avvik-tall-label">Kostnad</span>
+          <span class="avvik-tall-value ${cls || 'hoy'}">${fmtNok(a.kostnad)}</span>
+        </div>
+        <div class="avvik-tall-item">
+          <span class="avvik-tall-label">Normal (median)</span>
+          <span class="avvik-tall-value">${fmtNok(a.median)}</span>
+        </div>
+      </div>
+      <div class="avvik-spark-wrap">
+        <div class="avvik-spark-cols">${bars}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── Grafer ────────────────────────────────────────────────────────────────────
