@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kjøretøy Dashboard – Industrikran</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -251,6 +252,59 @@ td { padding: 10px 12px; vertical-align: middle; }
 
 footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub); border-top: 1px solid var(--border); margin-top: 8px; }
 
+/* ── Periodefilter ── */
+.periode-toolbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 28px; background: var(--card);
+  border-bottom: 1px solid var(--border);
+  font-size: .82rem; color: var(--sub);
+}
+.periode-toolbar label { font-weight: 600; color: var(--text); }
+.periode-toolbar select {
+  padding: 6px 28px 6px 10px; border: 1.5px solid var(--border);
+  border-radius: 8px; font-size: .8rem; font-family: inherit;
+  background: var(--bg); cursor: pointer; outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  -webkit-appearance: none; appearance: none;
+}
+.periode-toolbar select:focus { border-color: var(--navy); }
+
+/* ── Kostnadsseksjon ── */
+#kostnad-seksjonen {
+  display: grid; grid-template-columns: 2fr 1fr; gap: 16px;
+  margin-bottom: 28px;
+}
+.chart-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px 22px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.chart-card h3 {
+  font-size: .68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--sub); margin-bottom: 14px;
+}
+#donutWrap { max-width: 220px; margin: 0 auto; }
+
+/* ── Kostnad progress bars (detaljpanel) ── */
+.kostnad-bar-wrap { margin: 7px 0; }
+.kostnad-bar-row { display: flex; justify-content: space-between; align-items: center; font-size: .78rem; margin-bottom: 3px; }
+.kostnad-bar-label { color: var(--sub); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.kostnad-bar-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.kostnad-bar-amount { font-weight: 600; }
+.kostnad-bar-track { background: #f0f0f0; border-radius: 4px; height: 7px; margin-top: 3px; }
+.kostnad-bar-fill { height: 7px; border-radius: 4px; transition: width .4s; }
+.kostnad-tx-list { font-size: .75rem; margin-top: 10px; }
+.kostnad-tx-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f3f4f6; }
+.kostnad-tx-row:last-child { border-bottom: none; }
+
+/* ── Kostnad i tabell ── */
+.td-kostnad { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kostnad-hoy { color: var(--red); font-weight: 700; }
+.td-krkm { text-align: right; color: var(--sub); font-size: .75rem; white-space: nowrap; }
+
+@media (max-width: 900px) { #kostnad-seksjonen { grid-template-columns: 1fr; } }
+
 /* ── Lightbox ── */
 #lightbox {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92);
@@ -323,6 +377,18 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
     </div>
   </header>
 
+  <!-- ── Periodefilter ── -->
+  <div class="periode-toolbar">
+    <label>Kostnadsperiode:</label>
+    <select id="periodeVelger">
+      <option value="30">Siste 30 dager</option>
+      <option value="90">Siste 3 måneder</option>
+      <option value="ytd" selected>I år (YTD)</option>
+      <option value="365">Siste 12 måneder</option>
+      <option value="all">Alle</option>
+    </select>
+  </div>
+
   <main>
     <!-- KPI cards -->
     <div class="section-title">Nøkkeltall</div>
@@ -357,6 +423,35 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
         <div class="kpi-label">PKK-frist innen 30 dager</div>
         <div class="kpi-sub">Krever oppfølging</div>
       </div>
+      <div class="kpi" style="border-left-color:#4a6fa5">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-value" id="kpiKostnadTotal" style="color:#4a6fa5;font-size:1.3rem">–</div>
+        <div class="kpi-label">Total flåtekostnad</div>
+        <div class="kpi-sub" id="kpiKostnadSub">Valgt periode</div>
+      </div>
+      <div class="kpi" style="border-left-color:var(--green)">
+        <div class="kpi-icon">📊</div>
+        <div class="kpi-value" id="kpiKostnadSnitt" style="color:var(--green);font-size:1.3rem">–</div>
+        <div class="kpi-label">Snitt per bil</div>
+        <div class="kpi-sub" id="kpiKostnadSnittSub">Kun biler med kostnader</div>
+      </div>
+    </div>
+
+    <!-- Kostnadsgrafer -->
+    <div class="section-title">Kostnader</div>
+    <div id="kostnad-seksjonen">
+      <div class="chart-card">
+        <h3>Topp 15 biler etter kostnad</h3>
+        <div class="chart-wrap">
+          <canvas id="barChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Fordeling per kategori</h3>
+        <div id="donutWrap">
+          <canvas id="donutChart"></canvas>
+        </div>
+      </div>
     </div>
 
     <!-- Table -->
@@ -389,6 +484,8 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
               <th onclick="sortTable(4)">Km skjema <i class="si">↕</i></th>
               <th onclick="sortTable(5)">Sist inspektert <i class="si">↕</i></th>
               <th onclick="sortTable(6)">Skader <i class="si">↕</i></th>
+              <th onclick="sortTable(7)" style="text-align:right">Kostnad <i class="si">↕</i></th>
+              <th onclick="sortTable(8)" style="text-align:right">Kr/km <i class="si">↕</i></th>
               <th></th>
             </tr>
           </thead>
@@ -445,6 +542,7 @@ let damageOnly  = false;
 let avdelingFilter = '';
 let verneMap    = {};   // regnr → latest vernerunde record
 let verneAll    = {};   // regnr → all vernerunde records (for history)
+let kostnadMap  = {};   // regnr → { drivstoff, vedlikehold, dekk, bom, leasing, andre, total, transaksjoner[] }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function loginWithMicrosoft() {
@@ -513,6 +611,8 @@ async function loadData() {
     filtered = [...allRows];
     currentPage = 1;
 
+    await oppdaterKostnader();
+
     // Populate avdeling dropdown
     const avdelinger = [...new Set(allRows.map(r => r.organization_name).filter(Boolean))].sort((a,b) => a.localeCompare(b,'no'));
     const avdSel = document.getElementById('avdelingSelect');
@@ -521,6 +621,7 @@ async function loadData() {
       avdelinger.map(a => `<option value="${esc(a)}"${a===prevAvd?' selected':''}>${esc(a)}</option>`).join('');
 
     renderKPIs();
+    renderGrafer();
     applyFilters();
     updateTimestamp();
 
@@ -557,6 +658,18 @@ function renderKPIs() {
   document.getElementById('kpiInspectedSub').textContent = total ? `${inspected} av ${total} kjøretøy` : '';
   document.getElementById('kpiDamage').textContent    = damaged;
   document.getElementById('kpiPkk').textContent       = pkk30;
+
+  // Kostnad KPIer
+  const bilerMedKostnad = Object.values(kostnadMap).filter(k => k.total > 0);
+  const totalKostnad    = bilerMedKostnad.reduce((s, k) => s + k.total, 0);
+  const snittKostnad    = bilerMedKostnad.length ? totalKostnad / bilerMedKostnad.length : 0;
+  document.getElementById('kpiKostnadTotal').textContent = totalKostnad > 0 ? fmtNok(totalKostnad) : '–';
+  document.getElementById('kpiKostnadSnitt').textContent = snittKostnad > 0 ? fmtNok(snittKostnad) : '–';
+  document.getElementById('kpiKostnadSnittSub').textContent = bilerMedKostnad.length
+    ? `${bilerMedKostnad.length} biler med kostnader`
+    : 'Ingen kostnadsdata';
+  const periodeLabel = document.getElementById('periodeVelger')?.options[document.getElementById('periodeVelger')?.selectedIndex]?.text || '';
+  document.getElementById('kpiKostnadSub').textContent = periodeLabel;
 }
 
 // ── Filters & sort ────────────────────────────────────────────────────────────
@@ -591,7 +704,7 @@ function setAvdelingFilter() {
   applyFilters();
 }
 
-let sortAscArr = [true,true,true,false,false,false,true];
+let sortAscArr = [true,true,true,false,false,false,true,false,false];
 function sortTable(col) {
   if (sortCol === col) sortAscArr[col] = !sortAscArr[col];
   sortCol = col;
@@ -618,6 +731,11 @@ function sortRows() {
       case 4: av = a.verne?.kilometerstand || 0; bv = b.verne?.kilometerstand || 0; break;
       case 5: av = a.verne?.created_at || ''; bv = b.verne?.created_at || ''; break;
       case 6: av = a.verne?.har_skader ? 1 : 0; bv = b.verne?.har_skader ? 1 : 0; break;
+      case 7: av = a.kostnad?.total || 0; bv = b.kostnad?.total || 0; break;
+      case 8:
+        av = (a.kostnad?.total && a.odometer_value) ? a.kostnad.total / (a.odometer_value / 1000) : 0;
+        bv = (b.kostnad?.total && b.odometer_value) ? b.kostnad.total / (b.odometer_value / 1000) : 0;
+        break;
       default: av = ''; bv = '';
     }
     if (typeof av === 'string') return asc ? av.localeCompare(bv,'no') : bv.localeCompare(av,'no');
@@ -647,6 +765,14 @@ function renderTable() {
           : '<span class="badge b-green"><span class="dot"></span> Nei</span>')
       : '<span class="badge b-gray">–</span>';
 
+    const k = r.kostnad;
+    const kostnadTxt = k
+      ? `<span class="${k._hoy ? 'kostnad-hoy' : ''}">${fmtNok(k.total)}</span>`
+      : '<span class="no-data">–</span>';
+    const krKm = (k?.total && r.odometer_value)
+      ? (k.total / (r.odometer_value / 1000)).toFixed(2) + ' kr/km'
+      : '<span class="no-data">–</span>';
+
     const globalIdx = start + i;
     return `<tr onclick="openPanel(${globalIdx})">
       <td class="td-primary">${esc(r.driver_name || '–')}</td>
@@ -656,6 +782,8 @@ function renderTable() {
       <td>${skjemaKm}</td>
       <td>${inspDate}</td>
       <td>${damageBadge}</td>
+      <td class="td-kostnad">${kostnadTxt}</td>
+      <td class="td-krkm">${krKm}</td>
       <td style="color:var(--sub);font-size:1rem">›</td>
     </tr>`;
   }).join('');
@@ -762,6 +890,50 @@ function openPanel(idx) {
     }
   }
 
+  // ── Kostnader ──
+  const kData = kostnadMap[(r.license_plate || '').toUpperCase()];
+  if (kData && kData.total > 0) {
+    const periodeLabel = document.getElementById('periodeVelger')?.options[document.getElementById('periodeVelger')?.selectedIndex]?.text || '';
+    const kategorier = [
+      { key: 'drivstoff', label: 'Drivstoff',    farge: '#f1b434' },
+      { key: 'vedlikehold', label: 'Vedlikehold', farge: '#002554' },
+      { key: 'leasing',   label: 'Leasing',       farge: '#2e7d32' },
+      { key: 'bom',       label: 'Bom/parkering', farge: '#4a6fa5' },
+      { key: 'dekk',      label: 'Dekk',          farge: '#c62828' },
+      { key: 'andre',     label: 'Andre',          farge: '#888888' },
+    ].filter(k => kData[k.key] > 0);
+
+    const barsHtml = kategorier.map(k => {
+      const pst = Math.round((kData[k.key] / kData.total) * 100);
+      return `<div class="kostnad-bar-wrap">
+        <div class="kostnad-bar-row">
+          <span class="kostnad-bar-label">
+            <span class="kostnad-bar-dot" style="background:${k.farge}"></span>${k.label}
+          </span>
+          <span class="kostnad-bar-amount">${fmtNok(kData[k.key])} (${pst}%)</span>
+        </div>
+        <div class="kostnad-bar-track"><div class="kostnad-bar-fill" style="width:${pst}%;background:${k.farge}"></div></div>
+      </div>`;
+    }).join('');
+
+    const txHtml = [...kData.transaksjoner]
+      .sort((a, b) => new Date(b.posting_date) - new Date(a.posting_date))
+      .slice(0, 10)
+      .map(t => `<div class="kostnad-tx-row">
+        <span style="color:var(--sub)">${fmtDate(t.posting_date)}</span>
+        <span style="color:var(--sub)">${kategorierLabel(t.account_no)}</span>
+        <span style="font-weight:600">${fmtNok(parseFloat(t.amount))}</span>
+      </div>`).join('');
+
+    html += `<div class="panel-section">
+      <div class="panel-section-title">Kostnader – ${periodeLabel}</div>
+      <div style="font-size:1.25rem;font-weight:800;color:#4a6fa5;margin-bottom:12px">${fmtNok(kData.total)}</div>
+      ${barsHtml}
+      ${txHtml ? `<div style="margin-top:12px;font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--sub);margin-bottom:4px">Siste transaksjoner</div>
+      <div class="kostnad-tx-list">${txHtml}</div>` : ''}
+    </div>`;
+  }
+
   // ── History ──
   if (history.length > 0) {
     html += `<div class="panel-section">
@@ -826,6 +998,181 @@ function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Kostnad helpers ───────────────────────────────────────────────────────────
+function fmtNok(n) {
+  if (n == null || isNaN(n)) return '–';
+  return Math.round(n).toLocaleString('no-NO') + ' kr';
+}
+
+function kategoriFra(konto) {
+  if ([7000,7006,7007].includes(konto)) return 'drivstoff';
+  if (konto === 7020)               return 'vedlikehold';
+  if (konto === 7030)               return 'dekk';
+  if ([7080,7086].includes(konto))  return 'bom';
+  if (konto === 6440)               return 'leasing';
+  return 'andre';
+}
+
+function kategorierLabel(konto) {
+  const k = kategoriFra(konto);
+  return { drivstoff:'Drivstoff', vedlikehold:'Vedlikehold', dekk:'Dekk', bom:'Bom/park.', leasing:'Leasing', andre:'Andre' }[k] || 'Andre';
+}
+
+function hentStartDato() {
+  const val = document.getElementById('periodeVelger')?.value || 'ytd';
+  if (val === 'all') return null;
+  const now = new Date();
+  if (val === 'ytd') return `${now.getFullYear()}-01-01`;
+  const d = new Date(now);
+  d.setDate(d.getDate() - parseInt(val));
+  return d.toISOString().slice(0, 10);
+}
+
+async function loadKostnader(fraDate) {
+  let q = client
+    .from('po_kontotransaksjoner')
+    .select('description,account_no,amount,posting_date')
+    .eq('is_reversed', false)
+    .not('description', 'is', null);
+  if (fraDate) q = q.gte('posting_date', fraDate);
+  const { data, error } = await q;
+  if (error) { console.error('Kostnad-feil:', error); return []; }
+  const regnrRe = /^[A-ZÆØÅ]{2}[0-9]{5}$/i;
+  return (data || []).filter(t => regnrRe.test(t.description));
+}
+
+function byggKostnadMap(transaksjoner) {
+  const map = {};
+  for (const t of transaksjoner) {
+    const regnr = t.description.toUpperCase();
+    if (!map[regnr]) map[regnr] = { drivstoff:0, vedlikehold:0, dekk:0, bom:0, leasing:0, andre:0, total:0, transaksjoner:[] };
+    const k     = kategoriFra(t.account_no);
+    const beløp = parseFloat(t.amount) || 0;
+    map[regnr][k]     += beløp;
+    map[regnr].total  += beløp;
+    map[regnr].transaksjoner.push(t);
+  }
+  return map;
+}
+
+async function oppdaterKostnader() {
+  const fraDate      = hentStartDato();
+  const transaksjoner = await loadKostnader(fraDate);
+  kostnadMap         = byggKostnadMap(transaksjoner);
+
+  // Merk topp 20% som høy kostnad
+  const totaler = Object.values(kostnadMap).map(k => k.total).filter(t => t > 0).sort((a,b) => a-b);
+  const p80     = totaler[Math.floor(totaler.length * 0.8)] || Infinity;
+  Object.values(kostnadMap).forEach(k => { k._hoy = k.total >= p80; });
+
+  // Merge inn i allRows
+  for (const row of allRows) {
+    row.kostnad = kostnadMap[(row.license_plate || '').toUpperCase()] || null;
+  }
+}
+
+// ── Grafer ────────────────────────────────────────────────────────────────────
+const KOST_FARGER = {
+  drivstoff:  '#f1b434',
+  vedlikehold:'#002554',
+  leasing:    '#2e7d32',
+  bom:        '#4a6fa5',
+  dekk:       '#c62828',
+  andre:      '#888888',
+};
+const KOST_LABELS = {
+  drivstoff:'Drivstoff', vedlikehold:'Vedlikehold', leasing:'Leasing',
+  bom:'Bom/park.', dekk:'Dekk', andre:'Andre',
+};
+const KOST_KATEGORIER = ['drivstoff','vedlikehold','leasing','bom','dekk','andre'];
+
+let _barChart   = null;
+let _donutChart = null;
+
+function renderGrafer() {
+  const entries = Object.entries(kostnadMap)
+    .filter(([, k]) => k.total > 0)
+    .sort(([, a], [, b]) => b.total - a.total)
+    .slice(0, 15);
+
+  // Finn alias fra allRows for Y-aks label
+  const aliasMap = {};
+  allRows.forEach(r => { if (r.license_plate) aliasMap[r.license_plate.toUpperCase()] = r.alias || r.license_plate; });
+
+  const labels = entries.map(([regnr]) => aliasMap[regnr] || regnr);
+
+  // ── Stacked bar chart ──
+  const barCtx = document.getElementById('barChart').getContext('2d');
+  if (_barChart) _barChart.destroy();
+
+  const barHeight = Math.max(200, entries.length * 28);
+  document.getElementById('barChart').style.height = barHeight + 'px';
+
+  _barChart = new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: KOST_KATEGORIER.map(kat => ({
+        label:           KOST_LABELS[kat],
+        data:            entries.map(([, k]) => Math.round(k[kat])),
+        backgroundColor: KOST_FARGER[kat],
+        borderRadius:    2,
+      })),
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 14 } },
+        tooltip: {
+          callbacks: {
+            footer: items => 'Totalt: ' + Math.round(items.reduce((s, i) => s + i.raw, 0)).toLocaleString('no-NO') + ' kr',
+            label:  item  => ` ${item.dataset.label}: ${Math.round(item.raw).toLocaleString('no-NO')} kr`,
+          },
+        },
+      },
+      scales: {
+        x: { stacked: true, ticks: { callback: v => (v/1000).toFixed(0)+'k', font:{size:10} }, grid: { color:'#f0f0f0' } },
+        y: { stacked: true, ticks: { font:{size:11} } },
+      },
+    },
+  });
+
+  // ── Donut chart ──
+  const donutCtx = document.getElementById('donutChart').getContext('2d');
+  if (_donutChart) _donutChart.destroy();
+
+  const fleetTotals = KOST_KATEGORIER.map(kat =>
+    Object.values(kostnadMap).reduce((s, k) => s + (k[kat] || 0), 0)
+  ).map(Math.round);
+
+  const fleetTotal = fleetTotals.reduce((s, v) => s + v, 0);
+
+  _donutChart = new Chart(donutCtx, {
+    type: 'doughnut',
+    data: {
+      labels:   KOST_KATEGORIER.map(k => KOST_LABELS[k]),
+      datasets: [{ data: fleetTotals, backgroundColor: KOST_KATEGORIER.map(k => KOST_FARGER[k]), borderWidth: 2 }],
+    },
+    options: {
+      responsive: true,
+      cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { font:{size:11}, boxWidth:12, padding:10 } },
+        tooltip: {
+          callbacks: {
+            label: item => {
+              const pst = fleetTotal ? ((item.raw/fleetTotal)*100).toFixed(1) : 0;
+              return ` ${item.label}: ${Math.round(item.raw).toLocaleString('no-NO')} kr (${pst}%)`;
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 // ── Lightbox ──────────────────────────────────────────────────────────────────
 let _lbIdx = 0;
@@ -884,6 +1231,14 @@ async function init() {
     }
   });
 }
+
+// Periodefilter: oppdater kun kostnad + re-render (ikke ny ABAX-fetch)
+document.getElementById('periodeVelger').addEventListener('change', async () => {
+  await oppdaterKostnader();
+  renderKPIs();
+  renderGrafer();
+  renderTable();
+});
 
 init();
 </script>
