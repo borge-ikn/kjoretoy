@@ -444,6 +444,25 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
   </div>
 </div>
 
+<!-- ── Ingen tilgang ── -->
+<div id="ingenTilgangScreen" style="display:none; min-height:100vh; background:var(--navy);
+     flex-direction:column; align-items:center; justify-content:center; padding:32px;">
+  <div style="background:#fff; border-radius:16px; padding:40px 36px; max-width:420px;
+       width:100%; text-align:center; box-shadow:0 8px 40px rgba(0,0,0,.3);">
+    <div style="font-size:3rem; margin-bottom:12px;">🔒</div>
+    <h2 style="color:var(--navy); margin-bottom:8px;">Ingen tilgang</h2>
+    <p style="color:var(--sub); font-size:.9rem; line-height:1.55; margin-bottom:20px;">
+      Dette dashboardet er kun tilgjengelig for ledere.<br>
+      Kontakt IT hvis du mener du bør ha tilgang.
+    </p>
+    <span id="ingenTilgangEpost" style="display:block; font-size:.8rem;
+      color:var(--sub); margin-bottom:24px;"></span>
+    <button class="ms-btn" onclick="logout()" style="background:#dc2626;">
+      Logg ut
+    </button>
+  </div>
+</div>
+
 <!-- ── App ── -->
 <div id="appScreen">
   <div id="errorBanner"></div>
@@ -668,6 +687,28 @@ async function loginWithMicrosoft() {
 async function logout() {
   await client.auth.signOut();
   showLoginScreen();
+}
+
+// ── Tilgangskontroll ──────────────────────────────────────────────────────────
+async function sjekkTilgang(user) {
+  const { data, error } = await client
+    .from('po_ansatte')
+    .select('job_title')
+    .eq('email', user.email)
+    .eq('is_archived', false)
+    .maybeSingle();
+  if (error) console.error('Tilgangssjekk feil:', error);
+  const tittel = data?.job_title || '';
+  return /leder/i.test(tittel) || tittel === 'CFO' || tittel === 'Koordinator';
+}
+
+function visIngenTilgang(user) {
+  document.getElementById('loginScreen').style.display        = 'none';
+  document.getElementById('appScreen').style.display          = 'none';
+  document.getElementById('loadingOverlay').style.display     = 'none';
+  const skjerm = document.getElementById('ingenTilgangScreen');
+  skjerm.style.display = 'flex';
+  document.getElementById('ingenTilgangEpost').textContent    = user.email || '';
 }
 
 function showLoginScreen() {
@@ -1564,8 +1605,13 @@ function lbKey(e) {
 async function init() {
   const { data: { session } } = await client.auth.getSession();
   if (session?.user) {
-    showApp(session.user);
-    await loadData();
+    const harTilgang = await sjekkTilgang(session.user);
+    if (harTilgang) {
+      showApp(session.user);
+      await loadData();
+    } else {
+      visIngenTilgang(session.user);
+    }
   } else {
     document.getElementById('loadingOverlay').style.display = 'none';
     showLoginScreen();
@@ -1573,8 +1619,13 @@ async function init() {
 
   client.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
-      showApp(session.user);
-      await loadData();
+      const harTilgang = await sjekkTilgang(session.user);
+      if (harTilgang) {
+        showApp(session.user);
+        await loadData();
+      } else {
+        visIngenTilgang(session.user);
+      }
     } else if (event === 'SIGNED_OUT') {
       showLoginScreen();
     }
