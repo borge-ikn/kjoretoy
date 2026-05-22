@@ -601,8 +601,9 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
               <th onclick="sortTable(4)">Km skjema <i class="si">↕</i></th>
               <th onclick="sortTable(5)">Sist inspektert <i class="si">↕</i></th>
               <th onclick="sortTable(6)">Skader <i class="si">↕</i></th>
-              <th onclick="sortTable(7)" style="text-align:right">Kostnad <i class="si">↕</i></th>
-              <th onclick="sortTable(8)" style="text-align:right">Kr/km <i class="si">↕</i></th>
+              <th onclick="sortTable(7)">EU kontroll <i class="si">↕</i></th>
+              <th onclick="sortTable(8)" style="text-align:right">Kostnad <i class="si">↕</i></th>
+              <th onclick="sortTable(9)" style="text-align:right">Kr/km <i class="si">↕</i></th>
               <th></th>
             </tr>
           </thead>
@@ -736,7 +737,7 @@ async function loadData() {
   try {
     const [abaxRes, verneRes] = await Promise.all([
       client.from('abax_kjoretoy')
-        .select('license_plate,alias,manufacturer,model,driver_name,fuel_type,unit_health,location_in_movement,odometer_value,pkk_kontrollfrist,organization_name')
+        .select('license_plate,alias,manufacturer,model,driver_name,fuel_type,unit_health,location_in_movement,odometer_value,pkk_kontrollfrist,pkk_sist_godkjent,organization_name')
         .order('license_plate'),
       client.from('kjoretoy_vernerunde')
         .select('*')
@@ -810,7 +811,8 @@ function renderKPIs() {
 
   const inspected = allRows.filter(r => r.verne && new Date(r.verne.created_at) >= thirtyAgo).length;
   const damaged   = allRows.filter(r => r.verne?.har_skader === true).length;
-  const pkk30     = allRows.filter(r => {
+  const pkkForfalt = allRows.filter(r => r.pkk_kontrollfrist && new Date(r.pkk_kontrollfrist) < now).length;
+  const pkk30      = allRows.filter(r => {
     if (!r.pkk_kontrollfrist) return false;
     const d = new Date(r.pkk_kontrollfrist);
     return d >= now && d <= in30days;
@@ -822,7 +824,8 @@ function renderKPIs() {
   document.getElementById('kpiInspected').textContent = inspected;
   document.getElementById('kpiInspectedSub').textContent = total ? `${inspected} av ${total} kjøretøy` : '';
   document.getElementById('kpiDamage').textContent    = damaged;
-  document.getElementById('kpiPkk').textContent       = pkk30;
+  document.getElementById('kpiPkk').textContent       = pkkForfalt > 0 ? `${pkkForfalt} forfalt / ${pkk30} snart` : pkk30;
+  document.getElementById('kpiPkk').style.color       = pkkForfalt > 0 ? 'var(--red)' : pkk30 > 0 ? 'var(--amber)' : '';
 
   // Kostnad KPIer
   const bilerMedKostnad = Object.values(kostnadMap).filter(k => k.total > 0);
@@ -869,7 +872,7 @@ function setAvdelingFilter() {
   applyFilters();
 }
 
-let sortAscArr = [true,true,true,false,false,false,true,false,false];
+let sortAscArr = [true,true,true,false,false,false,true,true,false,false];
 function sortTable(col) {
   if (sortCol === col) sortAscArr[col] = !sortAscArr[col];
   sortCol = col;
@@ -896,8 +899,9 @@ function sortRows() {
       case 4: av = a.verne?.kilometerstand || 0; bv = b.verne?.kilometerstand || 0; break;
       case 5: av = a.verne?.created_at || ''; bv = b.verne?.created_at || ''; break;
       case 6: av = a.verne?.har_skader ? 1 : 0; bv = b.verne?.har_skader ? 1 : 0; break;
-      case 7: av = a.kostnad?.total || 0; bv = b.kostnad?.total || 0; break;
-      case 8:
+      case 7: av = a.pkk_kontrollfrist || '9999'; bv = b.pkk_kontrollfrist || '9999'; break;
+      case 8: av = a.kostnad?.total || 0; bv = b.kostnad?.total || 0; break;
+      case 9:
         av = (a.kostnad?.total && a.odometer_value) ? a.kostnad.total / (a.odometer_value / 1000) : 0;
         bv = (b.kostnad?.total && b.odometer_value) ? b.kostnad.total / (b.odometer_value / 1000) : 0;
         break;
@@ -930,6 +934,8 @@ function renderTable() {
           : '<span class="badge b-green"><span class="dot"></span> Nei</span>')
       : '<span class="badge b-gray">–</span>';
 
+    const pkkTd = pkkBadge(r.pkk_kontrollfrist);
+
     const k = r.kostnad;
     const kostnadTxt = k
       ? `<span class="${k._hoy ? 'kostnad-hoy' : ''}">${fmtNok(k.total)}</span>`
@@ -947,6 +953,7 @@ function renderTable() {
       <td>${skjemaKm}</td>
       <td>${inspDate}</td>
       <td>${damageBadge}</td>
+      <td>${pkkTd}</td>
       <td class="td-kostnad">${kostnadTxt}</td>
       <td class="td-krkm">${krKm}</td>
       <td style="color:var(--sub);font-size:1rem">›</td>
@@ -1006,7 +1013,8 @@ function openPanel(idx) {
     <div class="detail-row"><span class="detail-label">Drivstoff</span><span class="detail-value">${fuelLabel(r.fuel_type)}</span></div>
     <div class="detail-row"><span class="detail-label">Km (ABAX)</span><span class="detail-value">${r.odometer_value != null ? Math.round(r.odometer_value / 1000).toLocaleString('no-NO')+' km' : '–'}</span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${healthBadge(r.unit_health)}</span></div>
-    ${r.pkk_kontrollfrist ? `<div class="detail-row"><span class="detail-label">PKK-frist</span><span class="detail-value">${fmtDate(r.pkk_kontrollfrist)}</span></div>` : ''}
+    ${r.pkk_sist_godkjent ? `<div class="detail-row"><span class="detail-label">EU godkjent</span><span class="detail-value">${fmtDate(r.pkk_sist_godkjent)}</span></div>` : ''}
+    ${r.pkk_kontrollfrist ? `<div class="detail-row"><span class="detail-label">EU-frist</span><span class="detail-value">${pkkBadge(r.pkk_kontrollfrist)}</span></div>` : ''}
   </div>`;
 
   if (!v) {
@@ -1151,6 +1159,17 @@ function healthBadge(h) {
   if (h==='Unhealthy')  return '<span class="badge b-red"><span class="dot"></span> Feil</span>';
   if (h==='Degraded')   return '<span class="badge b-amber"><span class="dot"></span> Degradert</span>';
   return `<span class="badge b-gray">${h}</span>`;
+}
+
+function pkkBadge(frist) {
+  if (!frist) return '<span class="badge b-gray">–</span>';
+  const d    = new Date(frist);
+  const now  = new Date();
+  const days = Math.ceil((d - now) / 86400000);
+  if (days < 0)   return `<span class="badge b-red"><span class="dot"></span> Forfalt</span>`;
+  if (days <= 30) return `<span class="badge b-amber"><span class="dot"></span> ${fmtDate(frist)}</span>`;
+  if (days <= 90) return `<span class="badge b-blue"><span class="dot"></span> ${fmtDate(frist)}</span>`;
+  return             `<span class="badge b-green"><span class="dot"></span> ${fmtDate(frist)}</span>`;
 }
 
 function updateTimestamp() {
