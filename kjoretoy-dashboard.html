@@ -338,6 +338,18 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
 .avvik-spark-cols { display: flex; gap: 3px; align-items: flex-end; height: 40px; }
 .ingen-avvik { color: var(--sub); font-size: .85rem; padding: 14px 0; }
 
+/* ── Avvik kommentarboks ── */
+.avvik-kommentar-wrap { margin-top: 12px; border-top: 1px solid #f3f4f6; padding-top: 10px; }
+.avvik-kommentar-label { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--sub); margin-bottom: 5px; }
+.avvik-kommentar-ta {
+  width: 100%; padding: 7px 10px; border: 1.5px solid var(--border);
+  border-radius: 7px; font-size: .78rem; font-family: inherit;
+  color: var(--text); background: #fafafa; resize: none;
+  line-height: 1.45; outline: none; transition: border-color .15s, background .15s;
+}
+.avvik-kommentar-ta:focus { border-color: var(--navy); background: #fff; }
+.avvik-kommentar-status { font-size: .68rem; color: var(--sub); margin-top: 4px; min-height: 1em; text-align: right; }
+
 /* ── Lightbox ── */
 #lightbox {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92);
@@ -584,6 +596,7 @@ let avdelingFilter = '';
 let verneMap    = {};   // regnr → latest vernerunde record
 let verneAll    = {};   // regnr → all vernerunde records (for history)
 let kostnadMap  = {};   // regnr → { drivstoff, vedlikehold, dekk, bom, leasing, andre, total, transaksjoner[] }
+let currentUser = null; // innlogget bruker (Azure SSO)
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function loginWithMicrosoft() {
@@ -607,6 +620,7 @@ function showLoginScreen() {
 function showApp(user) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display   = 'block';
+  currentUser = user;
   const name = user.user_metadata?.full_name || user.user_metadata?.name || user.email || '';
   document.getElementById('userChip').textContent = name.split(' ')[0] || 'Innlogget';
 }
@@ -664,9 +678,11 @@ async function loadData() {
     renderKPIs();
     renderGrafer();
 
-    // Drivstoffavvik – last historikk og beregn
+    // Drivstoffavvik – last historikk, beregn avvik og last kommentarer
     if (!_drivstoffHistorikk) _drivstoffHistorikk = await lastDrivstoffHistorikk();
-    renderAvviksDrivstoff(beregnAvvik(_drivstoffHistorikk));
+    const avvik = beregnAvvik(_drivstoffHistorikk);
+    const kommentarer = await lastAvvikKommentarer(avvik);
+    renderAvviksDrivstoff(avvik, kommentarer);
 
     applyFilters();
     updateTimestamp();
@@ -1120,6 +1136,31 @@ async function oppdaterKostnader() {
 // ── Drivstoffavvik ────────────────────────────────────────────────────────────
 let _drivstoffHistorikk = null; // lastes én gang ved oppstart
 
+async function lastAvvikKommentarer(avvik) {
+  if (!avvik.length) return {};
+  const { data, error } = await client
+    .from('kjoretoy_avvik_kommentar')
+    .select('regnr,maaned,kommentar,opprettet_av,sist_endret');
+  if (error) { console.error('Kommentar-feil:', error); return {}; }
+  const map = {};
+  for (const r of (data || [])) map[r.regnr + '_' + r.maaned] = r;
+  return map;
+}
+
+async function lagreAvvikKommentar(regnr, maaned, tekst, statusEl) {
+  statusEl.textContent = 'Lagrer…';
+  const navn = currentUser?.user_metadata?.full_name
+    || currentUser?.user_metadata?.name
+    || currentUser?.email
+    || 'Ukjent';
+  const { error } = await client
+    .from('kjoretoy_avvik_kommentar')
+    .upsert({ regnr, maaned, kommentar: tekst, opprettet_av: navn, sist_endret: new Date().toISOString() },
+             { onConflict: 'regnr,maaned' });
+  statusEl.textContent = error ? '⚠️ Kunne ikke lagre' : '✓ Lagret';
+  setTimeout(() => { if (statusEl.textContent.startsWith('✓')) statusEl.textContent = ''; }, 2500);
+}
+
 async function lastDrivstoffHistorikk() {
   const { data, error } = await client
     .from('po_kontotransaksjoner')
@@ -1168,7 +1209,7 @@ function beregnAvvik(hist) {
   return avvik.sort((a, b) => b.ratio - a.ratio);
 }
 
-function renderAvviksDrivstoff(avvik) {
+function renderAvviksDrivstoff(avvik, kommentarer = {}) {
   const grid = document.getElementById('avvikGrid');
   if (!avvik.length) {
     grid.innerHTML = '<div class="ingen-avvik">Ingen vesentlige avvik i drivstofforbruk de siste 6 månedene.</div>';
@@ -1179,6 +1220,7 @@ function renderAvviksDrivstoff(avvik) {
   allRows.forEach(r => { if (r.license_plate) aliasMap[r.license_plate.toUpperCase()] = r.alias || r.driver_name || ''; });
 
   grid.innerHTML = avvik.map(a => {
+    a._key = a.regnr + '_' + a.maaned; // brukes til event-binding
     const moderat  = a.ratio < 3;
     const cls      = moderat ? 'moderat' : '';
     const alias    = aliasMap[a.regnr] || '';
@@ -1197,6 +1239,13 @@ function renderAvviksDrivstoff(avvik) {
         <div class="avvik-bar-label">${aktiv ? '<b>' + label + '</b>' : label}</div>
       </div>`;
     }).join('');
+
+    const key        = a.regnr + '_' + a.maaned;
+    const eksisterende = kommentarer[key]?.kommentar || '';
+    const sistEndretAv = kommentarer[key]?.opprettet_av || '';
+    const sistEndret   = kommentarer[key]?.sist_endret
+      ? fmtDate(kommentarer[key].sist_endret) + (sistEndretAv ? ' · ' + sistEndretAv : '')
+      : '';
 
     return `<div class="avvik-card ${cls}">
       <div class="avvik-card-head">
@@ -1223,8 +1272,32 @@ function renderAvviksDrivstoff(avvik) {
       <div class="avvik-spark-wrap">
         <div class="avvik-spark-cols">${bars}</div>
       </div>
+      <div class="avvik-kommentar-wrap">
+        <div class="avvik-kommentar-label">Kommentar</div>
+        <textarea class="avvik-kommentar-ta" rows="2"
+          data-regnr="${a.regnr}" data-maaned="${a.maaned}"
+          placeholder="Legg til forklaring eller tiltak…">${esc(eksisterende)}</textarea>
+        <div class="avvik-kommentar-status">${sistEndret ? 'Sist endret: ' + sistEndret : ''}</div>
+      </div>
     </div>`;
   }).join('');
+
+  // Bind auto-lagre på blur for alle kommentarfelter
+  grid.querySelectorAll('.avvik-kommentar-ta').forEach(ta => {
+    let _timer;
+    const statusEl = ta.nextElementSibling;
+    ta.addEventListener('input', () => {
+      clearTimeout(_timer);
+      statusEl.textContent = '';
+      _timer = setTimeout(() => lagreAvvikKommentar(ta.dataset.regnr, ta.dataset.maaned, ta.value, statusEl), 1200);
+    });
+    ta.addEventListener('blur', () => {
+      clearTimeout(_timer);
+      if (ta.value !== (kommentarer[ta.dataset.regnr + '_' + ta.dataset.maaned]?.kommentar || '')) {
+        lagreAvvikKommentar(ta.dataset.regnr, ta.dataset.maaned, ta.value, statusEl);
+      }
+    });
+  });
 }
 
 // ── Grafer ────────────────────────────────────────────────────────────────────
