@@ -311,7 +311,8 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
 .avvik-card {
   background: var(--card); border: 1px solid #fca5a5;
   border-left: 4px solid var(--red); border-radius: var(--radius);
-  padding: 16px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  padding: 16px 18px 40px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  position: relative;
 }
 .avvik-card.moderat { border-color: #fcd34d; border-left-color: var(--amber); }
 .avvik-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
@@ -338,17 +339,61 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
 .avvik-spark-cols { display: flex; gap: 3px; align-items: flex-end; height: 40px; }
 .ingen-avvik { color: var(--sub); font-size: .85rem; padding: 14px 0; }
 
-/* ── Avvik kommentarboks ── */
-.avvik-kommentar-wrap { margin-top: 12px; border-top: 1px solid #f3f4f6; padding-top: 10px; }
-.avvik-kommentar-label { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--sub); margin-bottom: 5px; }
-.avvik-kommentar-ta {
+/* ── Notat-knapp på avvik-kort ── */
+.notat-btn {
+  position: absolute; bottom: 12px; right: 14px;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1.5px solid var(--border); background: var(--bg);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  gap: 3px; font-size: .65rem; font-weight: 700; color: var(--sub);
+  transition: all .15s; font-family: inherit;
+}
+.notat-btn:hover { border-color: var(--navy); color: var(--navy); background: #e8edf5; }
+.notat-btn.har-notater { border-color: var(--navy); background: var(--navy); color: #fff; }
+.notat-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+/* ── Notat-popover ── */
+#notatPopover {
+  display: none; position: absolute; z-index: 200;
+  width: 310px; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  flex-direction: column; overflow: hidden;
+}
+#notatPopover.open { display: flex; }
+.notat-popover-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 14px; background: var(--navy); color: #fff;
+  font-size: .8rem; font-weight: 700;
+}
+.notat-popover-close {
+  background: none; border: none; color: #fff; font-size: 1.1rem;
+  cursor: pointer; line-height: 1; padding: 0 2px;
+}
+#notatListe { max-height: 220px; overflow-y: auto; padding: 10px 14px; }
+.notat-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+.notat-item:last-child { border-bottom: none; }
+.notat-meta { display: flex; justify-content: space-between; font-size: .68rem; color: var(--sub); margin-bottom: 3px; }
+.notat-tekst { font-size: .78rem; line-height: 1.5; color: var(--text); white-space: pre-wrap; }
+.notat-ingen { font-size: .78rem; color: var(--sub); padding: 4px 0; }
+.notat-input {
+  padding: 10px 14px; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 7px; background: #fafafa;
+}
+.notat-input textarea {
   width: 100%; padding: 7px 10px; border: 1.5px solid var(--border);
   border-radius: 7px; font-size: .78rem; font-family: inherit;
-  color: var(--text); background: #fafafa; resize: none;
-  line-height: 1.45; outline: none; transition: border-color .15s, background .15s;
+  resize: none; outline: none; transition: border-color .15s;
 }
-.avvik-kommentar-ta:focus { border-color: var(--navy); background: #fff; }
-.avvik-kommentar-status { font-size: .68rem; color: var(--sub); margin-top: 4px; min-height: 1em; text-align: right; }
+.notat-input textarea:focus { border-color: var(--navy); }
+.notat-legg-til {
+  align-self: flex-end; padding: 6px 14px;
+  background: var(--navy); color: #fff; border: none;
+  border-radius: 7px; font-size: .78rem; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: background .15s;
+}
+.notat-legg-til:hover { background: #162a50; }
+.notat-legg-til:disabled { opacity: .5; cursor: default; }
 
 /* ── Lightbox ── */
 #lightbox {
@@ -566,6 +611,19 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
 </div>
 
 <!-- ── Detail panel ── -->
+<!-- ── Notat-popover ── -->
+<div id="notatPopover">
+  <div class="notat-popover-header">
+    <span id="notatPopoverTittel"></span>
+    <button class="notat-popover-close" onclick="lukkNotatPopover()">×</button>
+  </div>
+  <div id="notatListe"></div>
+  <div class="notat-input">
+    <textarea id="notatTekst" rows="2" placeholder="Nytt notat…"></textarea>
+    <button class="notat-legg-til" id="notatLagreBtn">Legg til</button>
+  </div>
+</div>
+
 <div id="backdrop" onclick="closePanel()"></div>
 <div id="detailPanel">
   <div class="panel-header">
@@ -681,8 +739,8 @@ async function loadData() {
     // Drivstoffavvik – last historikk, beregn avvik og last kommentarer
     if (!_drivstoffHistorikk) _drivstoffHistorikk = await lastDrivstoffHistorikk();
     const avvik = beregnAvvik(_drivstoffHistorikk);
-    const kommentarer = await lastAvvikKommentarer(avvik);
-    renderAvviksDrivstoff(avvik, kommentarer);
+    const notaterMap = await lastNotater();
+    renderAvviksDrivstoff(avvik, notaterMap);
 
     applyFilters();
     updateTimestamp();
@@ -1136,30 +1194,105 @@ async function oppdaterKostnader() {
 // ── Drivstoffavvik ────────────────────────────────────────────────────────────
 let _drivstoffHistorikk = null; // lastes én gang ved oppstart
 
-async function lastAvvikKommentarer(avvik) {
-  if (!avvik.length) return {};
+let _notatCache          = {}; // { "regnr_maaned": [{ id, tekst, opprettet_av, opprettet_tid }] }
+let _notatPopoverTarget  = null;
+
+async function lastNotater() {
   const { data, error } = await client
-    .from('kjoretoy_avvik_kommentar')
-    .select('regnr,maaned,kommentar,opprettet_av,sist_endret');
-  if (error) { console.error('Kommentar-feil:', error); return {}; }
+    .from('kjoretoy_avvik_notat')
+    .select('id,regnr,maaned,tekst,opprettet_av,opprettet_tid')
+    .order('opprettet_tid', { ascending: false });
+  if (error) { console.error('Notat-feil:', error); return {}; }
   const map = {};
-  for (const r of (data || [])) map[r.regnr + '_' + r.maaned] = r;
+  for (const n of (data || [])) {
+    const key = n.regnr + '_' + n.maaned;
+    if (!map[key]) map[key] = [];
+    map[key].push(n);
+  }
   return map;
 }
 
-async function lagreAvvikKommentar(regnr, maaned, tekst, statusEl) {
-  statusEl.textContent = 'Lagrer…';
+async function lagreNotat(regnr, maaned) {
+  const ta  = document.getElementById('notatTekst');
+  const tekst = ta.value.trim();
+  if (!tekst) return;
+  const btn = document.getElementById('notatLagreBtn');
+  btn.disabled = true; btn.textContent = 'Lagrer…';
   const navn = currentUser?.user_metadata?.full_name
     || currentUser?.user_metadata?.name
-    || currentUser?.email
-    || 'Ukjent';
-  const { error } = await client
-    .from('kjoretoy_avvik_kommentar')
-    .upsert({ regnr, maaned, kommentar: tekst, opprettet_av: navn, sist_endret: new Date().toISOString() },
-             { onConflict: 'regnr,maaned' });
-  statusEl.textContent = error ? '⚠️ Kunne ikke lagre' : '✓ Lagret';
-  setTimeout(() => { if (statusEl.textContent.startsWith('✓')) statusEl.textContent = ''; }, 2500);
+    || currentUser?.email || 'Ukjent';
+  const { data, error } = await client
+    .from('kjoretoy_avvik_notat')
+    .insert({ regnr, maaned, tekst, opprettet_av: navn })
+    .select();
+  btn.disabled = false; btn.textContent = 'Legg til';
+  if (error) { btn.textContent = '⚠️ Feil'; setTimeout(() => { btn.textContent = 'Legg til'; }, 2000); return; }
+  const key = regnr + '_' + maaned;
+  if (!_notatCache[key]) _notatCache[key] = [];
+  _notatCache[key].unshift(data[0]);
+  ta.value = '';
+  renderNotatListe(regnr, maaned);
+  oppdaterNotatKnapp(regnr, maaned);
 }
+
+function renderNotatListe(regnr, maaned) {
+  const listeEl = document.getElementById('notatListe');
+  if (!listeEl) return;
+  const notater = _notatCache[regnr + '_' + maaned] || [];
+  if (!notater.length) {
+    listeEl.innerHTML = '<div class="notat-ingen">Ingen notater ennå.</div>';
+    return;
+  }
+  listeEl.innerHTML = notater.map(n => `
+    <div class="notat-item">
+      <div class="notat-meta">
+        <span>${esc(n.opprettet_av || 'Ukjent')}</span>
+        <span>${new Date(n.opprettet_tid).toLocaleString('no-NO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</span>
+      </div>
+      <div class="notat-tekst">${esc(n.tekst)}</div>
+    </div>`).join('');
+}
+
+function oppdaterNotatKnapp(regnr, maaned) {
+  const antall = (_notatCache[regnr + '_' + maaned] || []).length;
+  const btn = document.querySelector(`.notat-btn[data-regnr="${regnr}"][data-maaned="${maaned}"]`);
+  if (!btn) return;
+  btn.classList.toggle('har-notater', antall > 0);
+  btn.querySelector('.notat-count').textContent = antall > 0 ? antall : '';
+}
+
+function aapneNotatPopover(btn, regnr, maaned) {
+  const popover = document.getElementById('notatPopover');
+  const key = regnr + '_' + maaned;
+  if (_notatPopoverTarget === key && popover.classList.contains('open')) {
+    lukkNotatPopover(); return;
+  }
+  _notatPopoverTarget = key;
+  const mndLabel = new Date(maaned + '-01').toLocaleDateString('no-NO', { month: 'long', year: 'numeric' });
+  document.getElementById('notatPopoverTittel').textContent = regnr + ' – ' + mndLabel;
+  document.getElementById('notatTekst').value = '';
+  document.getElementById('notatLagreBtn').onclick = () => lagreNotat(regnr, maaned);
+  renderNotatListe(regnr, maaned);
+  // Plasser popover
+  const rect = btn.getBoundingClientRect();
+  const pw = 310;
+  const left = Math.min(rect.right - pw, window.innerWidth - pw - 12);
+  popover.style.top  = (rect.bottom + window.scrollY + 8) + 'px';
+  popover.style.left = Math.max(8, left) + 'px';
+  popover.classList.add('open');
+}
+
+function lukkNotatPopover() {
+  document.getElementById('notatPopover').classList.remove('open');
+  _notatPopoverTarget = null;
+}
+
+// Lukk ved klikk utenfor
+document.addEventListener('click', e => {
+  const pop = document.getElementById('notatPopover');
+  if (!pop?.classList.contains('open')) return;
+  if (!pop.contains(e.target) && !e.target.closest('.notat-btn')) lukkNotatPopover();
+});
 
 async function lastDrivstoffHistorikk() {
   const { data, error } = await client
@@ -1209,7 +1342,8 @@ function beregnAvvik(hist) {
   return avvik.sort((a, b) => b.ratio - a.ratio);
 }
 
-function renderAvviksDrivstoff(avvik, kommentarer = {}) {
+function renderAvviksDrivstoff(avvik, notaterMap = {}) {
+  _notatCache = notaterMap;
   const grid = document.getElementById('avvikGrid');
   if (!avvik.length) {
     grid.innerHTML = '<div class="ingen-avvik">Ingen vesentlige avvik i drivstofforbruk de siste 6 månedene.</div>';
@@ -1240,12 +1374,7 @@ function renderAvviksDrivstoff(avvik, kommentarer = {}) {
       </div>`;
     }).join('');
 
-    const key        = a.regnr + '_' + a.maaned;
-    const eksisterende = kommentarer[key]?.kommentar || '';
-    const sistEndretAv = kommentarer[key]?.opprettet_av || '';
-    const sistEndret   = kommentarer[key]?.sist_endret
-      ? fmtDate(kommentarer[key].sist_endret) + (sistEndretAv ? ' · ' + sistEndretAv : '')
-      : '';
+    const antall = (notaterMap[a.regnr + '_' + a.maaned] || []).length;
 
     return `<div class="avvik-card ${cls}">
       <div class="avvik-card-head">
@@ -1272,32 +1401,17 @@ function renderAvviksDrivstoff(avvik, kommentarer = {}) {
       <div class="avvik-spark-wrap">
         <div class="avvik-spark-cols">${bars}</div>
       </div>
-      <div class="avvik-kommentar-wrap">
-        <div class="avvik-kommentar-label">Kommentar</div>
-        <textarea class="avvik-kommentar-ta" rows="2"
-          data-regnr="${a.regnr}" data-maaned="${a.maaned}"
-          placeholder="Legg til forklaring eller tiltak…">${esc(eksisterende)}</textarea>
-        <div class="avvik-kommentar-status">${sistEndret ? 'Sist endret: ' + sistEndret : ''}</div>
-      </div>
+      <button class="notat-btn ${antall > 0 ? 'har-notater' : ''}"
+        data-regnr="${a.regnr}" data-maaned="${a.maaned}"
+        title="${antall > 0 ? antall + ' notat' + (antall > 1 ? 'er' : '') : 'Legg til notat'}"
+        onclick="aapneNotatPopover(this,'${a.regnr}','${a.maaned}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span class="notat-count">${antall > 0 ? antall : ''}</span>
+      </button>
     </div>`;
   }).join('');
-
-  // Bind auto-lagre på blur for alle kommentarfelter
-  grid.querySelectorAll('.avvik-kommentar-ta').forEach(ta => {
-    let _timer;
-    const statusEl = ta.nextElementSibling;
-    ta.addEventListener('input', () => {
-      clearTimeout(_timer);
-      statusEl.textContent = '';
-      _timer = setTimeout(() => lagreAvvikKommentar(ta.dataset.regnr, ta.dataset.maaned, ta.value, statusEl), 1200);
-    });
-    ta.addEventListener('blur', () => {
-      clearTimeout(_timer);
-      if (ta.value !== (kommentarer[ta.dataset.regnr + '_' + ta.dataset.maaned]?.kommentar || '')) {
-        lagreAvvikKommentar(ta.dataset.regnr, ta.dataset.maaned, ta.value, statusEl);
-      }
-    });
-  });
 }
 
 // ── Grafer ────────────────────────────────────────────────────────────────────
