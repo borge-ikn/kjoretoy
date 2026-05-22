@@ -655,6 +655,7 @@ let verneMap    = {};   // regnr → latest vernerunde record
 let verneAll    = {};   // regnr → all vernerunde records (for history)
 let kostnadMap  = {};   // regnr → { drivstoff, vedlikehold, dekk, bom, leasing, andre, total, transaksjoner[] }
 let currentUser = null; // innlogget bruker (Azure SSO)
+let _loading    = false; // guard mot dobbel loadData()-kall
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function loginWithMicrosoft() {
@@ -685,6 +686,8 @@ function showApp(user) {
 
 // ── Load data ─────────────────────────────────────────────────────────────────
 async function loadData() {
+  if (_loading) return;
+  _loading = true;
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
   document.getElementById('errorBanner').style.display = 'none';
@@ -750,6 +753,7 @@ async function loadData() {
     b.style.display = 'block';
     b.textContent = '⚠️ Kunne ikke hente data: ' + (err.message || err);
   } finally {
+    _loading = false;
     document.getElementById('loadingOverlay').style.display = 'none';
     btn.classList.remove('spinning');
   }
@@ -1153,7 +1157,8 @@ async function loadKostnader(fraDate) {
     .from('po_kontotransaksjoner')
     .select('description,account_no,amount,posting_date')
     .eq('is_reversed', false)
-    .not('description', 'is', null);
+    .not('description', 'is', null)
+    .limit(10000);  // Supabase-default er 1000 – hent alle relevante rader
   if (fraDate) q = q.gte('posting_date', fraDate);
   const { data, error } = await q;
   if (error) { console.error('Kostnad-feil:', error); return []; }
@@ -1300,7 +1305,8 @@ async function lastDrivstoffHistorikk() {
     .select('description,amount,posting_date')
     .in('account_no', [7000, 7006, 7007])
     .eq('is_reversed', false)
-    .not('description', 'is', null);
+    .not('description', 'is', null)
+    .limit(10000);
   if (error) { console.error('Drivstoff-historikk feil:', error); return {}; }
   const regnrRe = /^[A-ZÆØÅ]{2}[0-9]{5}$/i;
   const hist = {};
@@ -1577,10 +1583,24 @@ async function init() {
 
 // Periodefilter: oppdater kun kostnad + re-render (ikke ny ABAX-fetch)
 document.getElementById('periodeVelger').addEventListener('change', async () => {
-  await oppdaterKostnader();
-  renderKPIs();
-  renderGrafer();
-  renderTable();
+  const sel = document.getElementById('periodeVelger');
+  sel.disabled = true;
+
+  // Vis "laster"-tilstand i kostnad-KPI-kortene
+  document.getElementById('kpiKostnadTotal').textContent = '…';
+  document.getElementById('kpiKostnadSnitt').textContent = '…';
+  document.getElementById('kpiKostnadSub').textContent   = 'Laster…';
+
+  try {
+    await oppdaterKostnader();
+    renderKPIs();
+    renderGrafer();
+    renderTable();
+  } catch (err) {
+    console.error('Periodefilter-feil:', err);
+  } finally {
+    sel.disabled = false;
+  }
 });
 
 init();
