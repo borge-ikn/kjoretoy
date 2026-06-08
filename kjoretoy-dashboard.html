@@ -758,7 +758,7 @@ function renderTable() {
 
   tbody.innerHTML = page.map((r, i) => {
     const abaxKm = r.odometer_value != null
-      ? r.odometer_value.toLocaleString('no-NO') + ' km'
+      ? Math.round(r.odometer_value / 1000).toLocaleString('no-NO') + ' km'
       : '<span class="no-data">–</span>';
     const skjemaKm = r.verne?.kilometerstand != null
       ? r.verne.kilometerstand.toLocaleString('no-NO')
@@ -836,7 +836,7 @@ function openPanel(idx) {
   html += `<div class="panel-section">
     <div class="panel-section-title">Kjøretøyinfo (ABAX)</div>
     <div class="detail-row"><span class="detail-label">Drivstoff</span><span class="detail-value">${fuelLabel(r.fuel_type)}</span></div>
-    <div class="detail-row"><span class="detail-label">Km (ABAX)</span><span class="detail-value">${r.odometer_value != null ? r.odometer_value.toLocaleString('no-NO')+' km' : '–'}</span></div>
+    <div class="detail-row"><span class="detail-label">Km (ABAX)</span><span class="detail-value">${r.odometer_value != null ? Math.round(r.odometer_value / 1000).toLocaleString('no-NO')+' km' : '–'}</span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${healthBadge(r.unit_health)}</span></div>
     ${r.pkk_kontrollfrist ? `<div class="detail-row"><span class="detail-label">PKK-frist</span><span class="detail-value">${fmtDate(r.pkk_kontrollfrist)}</span></div>` : ''}
   </div>`;
