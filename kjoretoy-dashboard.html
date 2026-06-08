@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kjøretøy Dashboard – Industrikran</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -449,6 +450,10 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
 
     <!-- Fane: Kostnader -->
     <div id="fane-kostnader" style="display:none">
+      <div class="card" style="margin-bottom:1.2rem">
+        <div style="font-weight:700;font-size:.85rem;color:var(--sub);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.9rem">Kostnader per måned (YTD)</div>
+        <canvas id="kostnadGraf" height="85"></canvas>
+      </div>
       <div class="card">
         <div class="varsel-header">Drivstoffavvik – siste måned</div>
         <div class="varsel-grid" id="varselGrid"></div>
@@ -524,6 +529,8 @@ let avdelingFilter = '';
 let verneMap    = {};   // regnr → latest vernerunde record
 let verneAll    = {};   // regnr → all vernerunde records (for history)
 let allKostnader = [];  // po_kontotransaksjoner med regnr i description
+let kostnadChart  = null;
+let kjoretoyChart = null;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function loginWithMicrosoft() {
@@ -1096,6 +1103,97 @@ function renderKostnader() {
       <td>${avvikHtml}</td>
     </tr>`;
   }).join('');
+
+  renderKostnadGraf();
+}
+
+function renderKostnadGraf() {
+  const canvas = document.getElementById('kostnadGraf');
+  if (!canvas) return;
+  if (kostnadChart) { kostnadChart.destroy(); kostnadChart = null; }
+
+  const ytdFra = new Date().getFullYear() + '-01-01';
+  const ytd = allKostnader.filter(t => t.posting_date >= ytdFra);
+
+  const måneder = [...new Set(ytd.map(t => t.posting_date.slice(0,7)))].sort();
+  if (!måneder.length) { canvas.style.display = 'none'; return; }
+
+  const labels = måneder.map(m => new Date(m + '-02').toLocaleString('no-NO', { month: 'short', year: '2-digit' }));
+
+  const kategorier = [
+    { kto: 7000, label: 'Drivstoff',  color: '#f1b434' },
+    { kto: 6440, label: 'Leasing',    color: '#002554' },
+    { kto: 6100, label: 'Reparasjon', color: '#e53e3e' },
+    { kto: 6462, label: 'Forsikring', color: '#38a169' },
+    { kto: 6550, label: 'Diverse',    color: '#9ca3af' },
+  ];
+
+  const datasets = kategorier.map(k => ({
+    label: k.label,
+    backgroundColor: k.color,
+    data: måneder.map(m => ytd.filter(t => t.account_no === k.kto && t.posting_date.slice(0,7) === m).reduce((s,t) => s + Number(t.amount), 0)),
+    stack: 'a',
+  }));
+
+  kostnadChart = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 10 } },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + nok(ctx.raw) } },
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { stacked: true, ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v, font: { size: 11 } }, grid: { color: '#f0f0f0' } },
+      },
+    },
+  });
+}
+
+function renderKjoretoyGraf(regnr, txer) {
+  const canvas = document.getElementById('kjoretoyGraf');
+  if (!canvas) return;
+  if (kjoretoyChart) { kjoretoyChart.destroy(); kjoretoyChart = null; }
+
+  const måneder = [...new Set(txer.map(t => t.posting_date.slice(0,7)))].sort();
+  if (!måneder.length) { canvas.style.display = 'none'; return; }
+
+  const labels = måneder.map(m => new Date(m + '-02').toLocaleString('no-NO', { month: 'short', year: '2-digit' }));
+
+  const kategorier = [
+    { kto: 7000, label: 'Drivstoff',  color: '#f1b434' },
+    { kto: 6440, label: 'Leasing',    color: '#002554' },
+    { kto: 6100, label: 'Reparasjon', color: '#e53e3e' },
+    { kto: 6462, label: 'Forsikring', color: '#38a169' },
+    { kto: 6550, label: 'Diverse',    color: '#9ca3af' },
+  ];
+
+  const datasets = kategorier
+    .map(k => ({
+      label: k.label,
+      backgroundColor: k.color,
+      data: måneder.map(m => txer.filter(t => t.account_no === k.kto && t.posting_date.slice(0,7) === m).reduce((s,t) => s + Number(t.amount), 0)),
+      stack: 'a',
+    }))
+    .filter(ds => ds.data.some(v => v > 0));
+
+  kjoretoyChart = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10, padding: 8 } },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + nok(ctx.raw) } },
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { stacked: true, ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v, font: { size: 10 } }, grid: { color: '#f0f0f0' } },
+      },
+    },
+  });
 }
 
 // ── Kostnad drilldown ─────────────────────────────────────────────────────────
@@ -1122,7 +1220,8 @@ function åpneKostPanel(regnr) {
       <strong style="font-size:1.1rem">${esc(regnr)}${abax ? ' – ' + esc((abax.manufacturer||'')+' '+(abax.model||'')) : ''}</strong>
       <button onclick="lukkKostPanel()" style="background:none;border:none;font-size:1.6rem;cursor:pointer;color:var(--sub);line-height:1">×</button>
     </div>
-    ${abax ? `<p style="color:var(--sub);font-size:.88rem;margin-bottom:1.2rem">${esc(abax.driver_name||'')}</p>` : ''}
+    ${abax ? `<p style="color:var(--sub);font-size:.88rem;margin-bottom:1rem">${esc(abax.driver_name||'')}</p>` : ''}
+    <canvas id="kjoretoyGraf" height="120" style="margin-bottom:1.2rem"></canvas>
     <table style="width:100%;border-collapse:collapse;font-size:.85rem">
       <thead>
         <tr style="border-bottom:2px solid var(--border);color:var(--sub);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em">
@@ -1138,6 +1237,7 @@ function åpneKostPanel(regnr) {
 
   document.getElementById('kostBackdrop').style.display = '';
   document.getElementById('kostPanel').style.display    = '';
+  renderKjoretoyGraf(regnr, txer);
 }
 
 function lukkKostPanel() {
