@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kjøretøy Dashboard – Industrikran</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -252,149 +251,6 @@ td { padding: 10px 12px; vertical-align: middle; }
 
 footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub); border-top: 1px solid var(--border); margin-top: 8px; }
 
-/* ── Periodefilter ── */
-.periode-toolbar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 28px; background: var(--card);
-  border-bottom: 1px solid var(--border);
-  font-size: .82rem; color: var(--sub);
-}
-.periode-toolbar label { font-weight: 600; color: var(--text); }
-.periode-toolbar select {
-  padding: 6px 28px 6px 10px; border: 1.5px solid var(--border);
-  border-radius: 8px; font-size: .8rem; font-family: inherit;
-  background: var(--bg); cursor: pointer; outline: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 8px center;
-  -webkit-appearance: none; appearance: none;
-}
-.periode-toolbar select:focus { border-color: var(--navy); }
-
-/* ── Kostnadsseksjon ── */
-#kostnad-seksjonen {
-  display: grid; grid-template-columns: 2fr 1fr; gap: 16px;
-  margin-bottom: 28px;
-}
-.chart-card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 20px 22px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.05);
-}
-.chart-card h3 {
-  font-size: .68rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .08em; color: var(--sub); margin-bottom: 14px;
-}
-#donutWrap { max-width: 220px; margin: 0 auto; }
-
-/* ── Kostnad progress bars (detaljpanel) ── */
-.kostnad-bar-wrap { margin: 7px 0; }
-.kostnad-bar-row { display: flex; justify-content: space-between; align-items: center; font-size: .78rem; margin-bottom: 3px; }
-.kostnad-bar-label { color: var(--sub); font-weight: 500; display: flex; align-items: center; gap: 6px; }
-.kostnad-bar-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.kostnad-bar-amount { font-weight: 600; }
-.kostnad-bar-track { background: #f0f0f0; border-radius: 4px; height: 7px; margin-top: 3px; }
-.kostnad-bar-fill { height: 7px; border-radius: 4px; transition: width .4s; }
-.kostnad-tx-list { font-size: .75rem; margin-top: 10px; }
-.kostnad-tx-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f3f4f6; }
-.kostnad-tx-row:last-child { border-bottom: none; }
-
-/* ── Kostnad i tabell ── */
-.td-kostnad { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.kostnad-hoy { color: var(--red); font-weight: 700; }
-.td-krkm { text-align: right; color: var(--sub); font-size: .75rem; white-space: nowrap; }
-
-@media (max-width: 900px) { #kostnad-seksjonen { grid-template-columns: 1fr; } }
-
-/* ── Drivstoffavvik ── */
-#avvik-seksjonen { margin-bottom: 28px; }
-.avvik-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
-.avvik-card {
-  background: var(--card); border: 1px solid #fca5a5;
-  border-left: 4px solid var(--red); border-radius: var(--radius);
-  padding: 16px 18px 40px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
-  position: relative;
-}
-.avvik-card.moderat { border-color: #fcd34d; border-left-color: var(--amber); }
-.avvik-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-.avvik-card-regnr { font-weight: 700; font-size: .95rem; color: var(--text); }
-.avvik-card-alias { font-size: .75rem; color: var(--sub); margin-top: 1px; }
-.avvik-ratio {
-  font-size: .72rem; font-weight: 700; padding: 3px 8px;
-  border-radius: 99px; white-space: nowrap;
-  background: var(--red-lt); color: var(--red);
-}
-.avvik-ratio.moderat { background: var(--amber-lt); color: var(--amber); }
-.avvik-card-tall { display: flex; gap: 20px; font-size: .8rem; margin-bottom: 12px; }
-.avvik-tall-item { display: flex; flex-direction: column; gap: 2px; }
-.avvik-tall-label { font-size: .68rem; color: var(--sub); text-transform: uppercase; letter-spacing: .05em; }
-.avvik-tall-value { font-weight: 700; }
-.avvik-tall-value.hoy { color: var(--red); }
-.avvik-tall-value.moderat { color: var(--amber); }
-/* Mini sparkline bars */
-.avvik-spark { display: flex; align-items: flex-end; gap: 3px; height: 40px; }
-.avvik-bar { flex: 1; border-radius: 2px 2px 0 0; min-height: 3px; opacity: .55; transition: opacity .15s; }
-.avvik-bar.aktiv { opacity: 1; }
-.avvik-bar-label { font-size: .6rem; color: var(--sub); text-align: center; margin-top: 3px; }
-.avvik-spark-wrap { display: flex; flex-direction: column; }
-.avvik-spark-cols { display: flex; gap: 3px; align-items: flex-end; height: 40px; }
-.ingen-avvik { color: var(--sub); font-size: .85rem; padding: 14px 0; }
-
-/* ── Notat-knapp på avvik-kort ── */
-.notat-btn {
-  position: absolute; bottom: 12px; right: 14px;
-  width: 28px; height: 28px; border-radius: 50%;
-  border: 1.5px solid var(--border); background: var(--bg);
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  gap: 3px; font-size: .65rem; font-weight: 700; color: var(--sub);
-  transition: all .15s; font-family: inherit;
-}
-.notat-btn:hover { border-color: var(--navy); color: var(--navy); background: #e8edf5; }
-.notat-btn.har-notater { border-color: var(--navy); background: var(--navy); color: #fff; }
-.notat-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
-
-/* ── Notat-popover ── */
-#notatPopover {
-  display: none; position: absolute; z-index: 200;
-  width: 310px; background: var(--card);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: 0 8px 32px rgba(0,0,0,.18);
-  flex-direction: column; overflow: hidden;
-}
-#notatPopover.open { display: flex; }
-.notat-popover-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 11px 14px; background: var(--navy); color: #fff;
-  font-size: .8rem; font-weight: 700;
-}
-.notat-popover-close {
-  background: none; border: none; color: #fff; font-size: 1.1rem;
-  cursor: pointer; line-height: 1; padding: 0 2px;
-}
-#notatListe { max-height: 220px; overflow-y: auto; padding: 10px 14px; }
-.notat-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
-.notat-item:last-child { border-bottom: none; }
-.notat-meta { display: flex; justify-content: space-between; font-size: .68rem; color: var(--sub); margin-bottom: 3px; }
-.notat-tekst { font-size: .78rem; line-height: 1.5; color: var(--text); white-space: pre-wrap; }
-.notat-ingen { font-size: .78rem; color: var(--sub); padding: 4px 0; }
-.notat-input {
-  padding: 10px 14px; border-top: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 7px; background: #fafafa;
-}
-.notat-input textarea {
-  width: 100%; padding: 7px 10px; border: 1.5px solid var(--border);
-  border-radius: 7px; font-size: .78rem; font-family: inherit;
-  resize: none; outline: none; transition: border-color .15s;
-}
-.notat-input textarea:focus { border-color: var(--navy); }
-.notat-legg-til {
-  align-self: flex-end; padding: 6px 14px;
-  background: var(--navy); color: #fff; border: none;
-  border-radius: 7px; font-size: .78rem; font-weight: 600;
-  cursor: pointer; font-family: inherit; transition: background .15s;
-}
-.notat-legg-til:hover { background: #162a50; }
-.notat-legg-til:disabled { opacity: .5; cursor: default; }
-
 /* ── Lightbox ── */
 #lightbox {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92);
@@ -417,6 +273,34 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
 }
 #lightbox-prev { left: 16px; }
 #lightbox-next { right: 16px; }
+
+/* ── Faner ── */
+.tab-bar { display:flex; gap:.5rem; padding:0 1.5rem 1.2rem; }
+.tab-btn { padding:.5rem 1.4rem; border-radius:8px; border:none; background:var(--border);
+           cursor:pointer; font-weight:600; font-size:.9rem; color:var(--sub); transition:.15s; }
+.tab-btn.active { background:var(--navy); color:#fff; }
+.tab-btn:hover:not(.active) { background:#d1d5db; }
+
+/* ── Varsler ── */
+.varsel-header { padding:1rem 1.5rem .5rem; font-weight:700; font-size:.95rem; color:var(--text); }
+.varsel-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:.75rem; padding:.5rem 1.5rem 1.2rem; }
+.varsel-kort { border-radius:10px; padding:.9rem 1.1rem; }
+.varsel-kort.hoy      { background:var(--red-lt);   border-left:4px solid var(--red); }
+.varsel-kort.moderat  { background:#fef9c3;          border-left:4px solid #ca8a04; }
+.varsel-kort.ok       { background:var(--green-lt);  border-left:4px solid var(--green); padding:.75rem 1rem; }
+.varsel-regnr  { font-weight:700; font-size:.95rem; }
+.varsel-tekst  { font-size:.82rem; color:var(--sub); margin-top:.2rem; }
+
+/* ── Kostnadstabell ── */
+.kost-wrap { padding:0 1.5rem 1.5rem; }
+.kost-table { width:100%; border-collapse:collapse; font-size:.88rem; }
+.kost-table th { text-align:left; padding:.55rem .75rem; background:var(--bg); border-bottom:2px solid var(--border);
+                 font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--sub); }
+.kost-table td { padding:.55rem .75rem; border-bottom:1px solid var(--border); }
+.kost-table tr:hover td { background:#f9fafb; }
+.kost-table .num { text-align:right; font-variant-numeric:tabular-nums; }
+.kost-avvik-hoy     { color:var(--red);   font-weight:700; }
+.kost-avvik-moderat { color:#ca8a04;      font-weight:700; }
 </style>
 </head>
 <body>
@@ -445,21 +329,12 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
 </div>
 
 <!-- ── Ingen tilgang ── -->
-<div id="ingenTilgangScreen" style="display:none; min-height:100vh; background:var(--navy);
-     flex-direction:column; align-items:center; justify-content:center; padding:32px;">
-  <div style="background:#fff; border-radius:16px; padding:40px 36px; max-width:420px;
-       width:100%; text-align:center; box-shadow:0 8px 40px rgba(0,0,0,.3);">
-    <div style="font-size:3rem; margin-bottom:12px;">🔒</div>
-    <h2 style="color:var(--navy); margin-bottom:8px;">Ingen tilgang</h2>
-    <p style="color:var(--sub); font-size:.9rem; line-height:1.55; margin-bottom:20px;">
-      Dette dashboardet er kun tilgjengelig for ledere.<br>
-      Kontakt IT hvis du mener du bør ha tilgang.
-    </p>
-    <span id="ingenTilgangEpost" style="display:block; font-size:.8rem;
-      color:var(--sub); margin-bottom:24px;"></span>
-    <button class="ms-btn" onclick="logout()" style="background:#dc2626;">
-      Logg ut
-    </button>
+<div id="ingenTilgangScreen" style="display:none">
+  <div class="login-card">
+    <div class="icon">🚫</div>
+    <h2>Ingen tilgang</h2>
+    <p>Dette dashboardet er kun for ledelse.<br><small id="ingenTilgangEpost" style="color:#888"></small></p>
+    <button class="ms-btn" onclick="logout()">Logg ut</button>
   </div>
 </div>
 
@@ -485,18 +360,6 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
       <button class="logout-btn" onclick="logout()">Logg ut</button>
     </div>
   </header>
-
-  <!-- ── Periodefilter ── -->
-  <div class="periode-toolbar">
-    <label>Kostnadsperiode:</label>
-    <select id="periodeVelger">
-      <option value="30">Siste 30 dager</option>
-      <option value="90">Siste 3 måneder</option>
-      <option value="ytd" selected>I år (YTD)</option>
-      <option value="365">Siste 12 måneder</option>
-      <option value="all">Alle</option>
-    </select>
-  </div>
 
   <main>
     <!-- KPI cards -->
@@ -532,47 +395,16 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
         <div class="kpi-label">PKK-frist innen 30 dager</div>
         <div class="kpi-sub">Krever oppfølging</div>
       </div>
-      <div class="kpi" style="border-left-color:#4a6fa5">
-        <div class="kpi-icon">💰</div>
-        <div class="kpi-value" id="kpiKostnadTotal" style="color:#4a6fa5;font-size:1.3rem">–</div>
-        <div class="kpi-label">Total flåtekostnad</div>
-        <div class="kpi-sub" id="kpiKostnadSub">Valgt periode</div>
-      </div>
-      <div class="kpi" style="border-left-color:var(--green)">
-        <div class="kpi-icon">📊</div>
-        <div class="kpi-value" id="kpiKostnadSnitt" style="color:var(--green);font-size:1.3rem">–</div>
-        <div class="kpi-label">Snitt per bil</div>
-        <div class="kpi-sub" id="kpiKostnadSnittSub">Kun biler med kostnader</div>
-      </div>
     </div>
 
-    <!-- Kostnadsgrafer -->
-    <div class="section-title">Kostnader</div>
-    <div id="kostnad-seksjonen">
-      <div class="chart-card">
-        <h3>Topp 15 biler etter kostnad</h3>
-        <div class="chart-wrap">
-          <canvas id="barChart"></canvas>
-        </div>
-      </div>
-      <div class="chart-card">
-        <h3>Fordeling per kategori</h3>
-        <div id="donutWrap">
-          <canvas id="donutChart"></canvas>
-        </div>
-      </div>
+    <!-- Fanevalg -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="byttFane('flate')">🚐 Flåte</button>
+      <button class="tab-btn" onclick="byttFane('kostnader')">💰 Kostnader</button>
     </div>
 
-    <!-- Drivstoffavvik -->
-    <div id="avvik-seksjonen">
-      <div class="section-title">⚠️ Drivstoff – avvikende forbruk</div>
-      <div class="avvik-grid" id="avvikGrid">
-        <div class="ingen-avvik">Laster…</div>
-      </div>
-    </div>
-
-    <!-- Table -->
-    <div class="section-title">Kjøretøyliste</div>
+    <!-- Fane: Flåte -->
+    <div id="fane-flate">
     <div class="card">
       <div class="toolbar">
         <div class="search-box">
@@ -601,9 +433,6 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
               <th onclick="sortTable(4)">Km skjema <i class="si">↕</i></th>
               <th onclick="sortTable(5)">Sist inspektert <i class="si">↕</i></th>
               <th onclick="sortTable(6)">Skader <i class="si">↕</i></th>
-              <th onclick="sortTable(7)">EU kontroll <i class="si">↕</i></th>
-              <th onclick="sortTable(8)" style="text-align:right">Kostnad <i class="si">↕</i></th>
-              <th onclick="sortTable(9)" style="text-align:right">Kr/km <i class="si">↕</i></th>
               <th></th>
             </tr>
           </thead>
@@ -616,6 +445,40 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
         <div class="page-btns" id="pageBtns"></div>
       </div>
     </div>
+    </div><!-- /fane-flate -->
+
+    <!-- Fane: Kostnader -->
+    <div id="fane-kostnader" style="display:none">
+      <div class="card">
+        <div class="varsel-header">Drivstoffavvik – siste måned</div>
+        <div class="varsel-grid" id="varselGrid"></div>
+        <div class="kost-wrap">
+          <table class="kost-table" id="kostTable">
+            <thead>
+              <tr>
+                <th>Reg.nr</th>
+                <th>Merke / Modell</th>
+                <th>Sjåfør</th>
+                <th class="num">Drivstoff YTD</th>
+                <th class="num">Leasing YTD</th>
+                <th class="num">Rep. YTD</th>
+                <th class="num">Forsikring YTD</th>
+                <th class="num">Total YTD</th>
+                <th>Avvik</th>
+              </tr>
+            </thead>
+            <tbody id="kostBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /fane-kostnader -->
+
+    <!-- Drilldown-panel for kostnader -->
+    <div id="kostBackdrop" onclick="lukkKostPanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200"></div>
+    <div id="kostPanel" style="display:none;position:fixed;top:0;right:0;width:min(520px,100vw);height:100vh;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.15);z-index:201;overflow-y:auto;padding:1.5rem">
+      <div id="kostPanelInnhold"></div>
+    </div>
+
   </main>
 
   <footer>Industrikran · ABAX + Vernerunde · <span id="footerDate"></span></footer>
@@ -631,19 +494,6 @@ footer { text-align: center; padding: 14px; font-size: .7rem; color: var(--sub);
 </div>
 
 <!-- ── Detail panel ── -->
-<!-- ── Notat-popover ── -->
-<div id="notatPopover">
-  <div class="notat-popover-header">
-    <span id="notatPopoverTittel"></span>
-    <button class="notat-popover-close" onclick="lukkNotatPopover()">×</button>
-  </div>
-  <div id="notatListe"></div>
-  <div class="notat-input">
-    <textarea id="notatTekst" rows="2" placeholder="Nytt notat…"></textarea>
-    <button class="notat-legg-til" id="notatLagreBtn">Legg til</button>
-  </div>
-</div>
-
 <div id="backdrop" onclick="closePanel()"></div>
 <div id="detailPanel">
   <div class="panel-header">
@@ -673,43 +523,19 @@ let damageOnly  = false;
 let avdelingFilter = '';
 let verneMap    = {};   // regnr → latest vernerunde record
 let verneAll    = {};   // regnr → all vernerunde records (for history)
-let kostnadMap  = {};   // regnr → { drivstoff, vedlikehold, dekk, bom, leasing, andre, total, transaksjoner[] }
-let currentUser = null; // innlogget bruker (Azure SSO)
-let _loading    = false; // guard mot dobbel loadData()-kall
+let allKostnader = [];  // po_kontotransaksjoner med regnr i description
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function loginWithMicrosoft() {
   await client.auth.signInWithOAuth({
     provider: 'azure',
-    options: { redirectTo: 'https://industrikran-kjoretoy.netlify.app/kjoretoy-dashboard' }
+    options: { redirectTo: 'https://industrikran-kjoretoy.netlify.app/kjoretoy-dashboard', scopes: 'email profile' }
   });
 }
 
 async function logout() {
   await client.auth.signOut();
   showLoginScreen();
-}
-
-// ── Tilgangskontroll ──────────────────────────────────────────────────────────
-async function sjekkTilgang(user) {
-  const { data, error } = await client
-    .from('po_ansatte')
-    .select('job_title')
-    .eq('email', user.email)
-    .eq('is_archived', false)
-    .maybeSingle();
-  if (error) console.error('Tilgangssjekk feil:', error);
-  const tittel = data?.job_title || '';
-  return /leder/i.test(tittel) || tittel === 'CFO' || tittel === 'Koordinator';
-}
-
-function visIngenTilgang(user) {
-  document.getElementById('loginScreen').style.display        = 'none';
-  document.getElementById('appScreen').style.display          = 'none';
-  document.getElementById('loadingOverlay').style.display     = 'none';
-  const skjerm = document.getElementById('ingenTilgangScreen');
-  skjerm.style.display = 'flex';
-  document.getElementById('ingenTilgangEpost').textContent    = user.email || '';
 }
 
 function showLoginScreen() {
@@ -720,31 +546,74 @@ function showLoginScreen() {
 
 function showApp(user) {
   document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('ingenTilgangScreen').style.display = 'none';
   document.getElementById('appScreen').style.display   = 'block';
-  currentUser = user;
   const name = user.user_metadata?.full_name || user.user_metadata?.name || user.email || '';
   document.getElementById('userChip').textContent = name.split(' ')[0] || 'Innlogget';
 }
 
+async function sjekkTilgang(email) {
+  const [ansattRes, whitelistRes] = await Promise.all([
+    client.from('po_ansatte').select('job_title').ilike('email', email).maybeSingle(),
+    client.from('timerapp_tilgang').select('rolle').ilike('email', email).maybeSingle()
+  ]);
+  if (whitelistRes.data) return true;
+  const t = (ansattRes.data?.job_title || '').toLowerCase();
+  return t.includes('leder') || t.includes('koordinator') || t.includes('kordinator');
+}
+
+function visIngenTilgang(email) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('loadingOverlay').style.display = 'none';
+  document.getElementById('ingenTilgangScreen').style.display = 'flex';
+  document.getElementById('ingenTilgangEpost').textContent = email;
+}
+
+async function startApp(user) {
+  const ok = await sjekkTilgang(user.email);
+  if (!ok) { visIngenTilgang(user.email); return; }
+  showApp(user);
+  await loadData();
+}
+
 // ── Load data ─────────────────────────────────────────────────────────────────
 async function loadData() {
-  if (_loading) return;
-  _loading = true;
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
   document.getElementById('errorBanner').style.display = 'none';
 
   try {
-    const [abaxRes, verneRes] = await Promise.all([
+    const [abaxRes, verneRes, kostRes, fakturaRes, leverandorRes] = await Promise.all([
       client.from('abax_kjoretoy')
-        .select('license_plate,alias,manufacturer,model,driver_name,fuel_type,unit_health,location_in_movement,odometer_value,pkk_kontrollfrist,pkk_sist_godkjent,organization_name')
+        .select('license_plate,alias,manufacturer,model,driver_name,fuel_type,unit_health,location_in_movement,odometer_value,pkk_kontrollfrist,organization_name')
         .order('license_plate'),
       client.from('kjoretoy_vernerunde')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false }),
+      client.from('po_kontotransaksjoner')
+        .select('description,account_no,amount,posting_date,voucher_no')
+        .in('account_no', [7000, 6440, 6100, 6462, 6550])
+        .eq('is_reversed', false),
+      client.from('po_inngaende_fakturaer').select('voucher_no,invoice_no,supplier_id'),
+      client.from('po_leverandorer').select('po_id,name')
     ]);
 
     if (abaxRes.error) throw abaxRes.error;
+
+    // Filtrer kostnader til kun regnr-format (XX99999)
+    const regnrRegex = /^[A-Z]{2}\d{5}$/;
+    allKostnader = (kostRes.data || []).filter(r => regnrRegex.test(r.description));
+
+    // Bygg leverandørkart: voucher_no → { leverandor, invoice_no }
+    const lvMap = {};
+    (leverandorRes.data || []).forEach(l => { lvMap[l.po_id] = l.name; });
+    window._leverandorMap = {};
+    (fakturaRes.data || []).forEach(f => {
+      window._leverandorMap[String(f.voucher_no)] = {
+        invoice_no: f.invoice_no,
+        leverandor: lvMap[f.supplier_id] || '–'
+      };
+    });
 
     // Build vernerunde maps
     verneMap = {};
@@ -769,8 +638,6 @@ async function loadData() {
     filtered = [...allRows];
     currentPage = 1;
 
-    await oppdaterKostnader();
-
     // Populate avdeling dropdown
     const avdelinger = [...new Set(allRows.map(r => r.organization_name).filter(Boolean))].sort((a,b) => a.localeCompare(b,'no'));
     const avdSel = document.getElementById('avdelingSelect');
@@ -779,14 +646,6 @@ async function loadData() {
       avdelinger.map(a => `<option value="${esc(a)}"${a===prevAvd?' selected':''}>${esc(a)}</option>`).join('');
 
     renderKPIs();
-    renderGrafer();
-
-    // Drivstoffavvik – last historikk, beregn avvik og last kommentarer
-    if (!_drivstoffHistorikk) _drivstoffHistorikk = await lastDrivstoffHistorikk();
-    const avvik = beregnAvvik(_drivstoffHistorikk);
-    const notaterMap = await lastNotater();
-    renderAvviksDrivstoff(avvik, notaterMap);
-
     applyFilters();
     updateTimestamp();
 
@@ -795,7 +654,6 @@ async function loadData() {
     b.style.display = 'block';
     b.textContent = '⚠️ Kunne ikke hente data: ' + (err.message || err);
   } finally {
-    _loading = false;
     document.getElementById('loadingOverlay').style.display = 'none';
     btn.classList.remove('spinning');
   }
@@ -811,8 +669,7 @@ function renderKPIs() {
 
   const inspected = allRows.filter(r => r.verne && new Date(r.verne.created_at) >= thirtyAgo).length;
   const damaged   = allRows.filter(r => r.verne?.har_skader === true).length;
-  const pkkForfalt = allRows.filter(r => r.pkk_kontrollfrist && new Date(r.pkk_kontrollfrist) < now).length;
-  const pkk30      = allRows.filter(r => {
+  const pkk30     = allRows.filter(r => {
     if (!r.pkk_kontrollfrist) return false;
     const d = new Date(r.pkk_kontrollfrist);
     return d >= now && d <= in30days;
@@ -824,20 +681,7 @@ function renderKPIs() {
   document.getElementById('kpiInspected').textContent = inspected;
   document.getElementById('kpiInspectedSub').textContent = total ? `${inspected} av ${total} kjøretøy` : '';
   document.getElementById('kpiDamage').textContent    = damaged;
-  document.getElementById('kpiPkk').textContent       = pkkForfalt > 0 ? `${pkkForfalt} forfalt / ${pkk30} snart` : pkk30;
-  document.getElementById('kpiPkk').style.color       = pkkForfalt > 0 ? 'var(--red)' : pkk30 > 0 ? 'var(--amber)' : '';
-
-  // Kostnad KPIer
-  const bilerMedKostnad = Object.values(kostnadMap).filter(k => k.total > 0);
-  const totalKostnad    = bilerMedKostnad.reduce((s, k) => s + k.total, 0);
-  const snittKostnad    = bilerMedKostnad.length ? totalKostnad / bilerMedKostnad.length : 0;
-  document.getElementById('kpiKostnadTotal').textContent = totalKostnad > 0 ? fmtNok(totalKostnad) : '–';
-  document.getElementById('kpiKostnadSnitt').textContent = snittKostnad > 0 ? fmtNok(snittKostnad) : '–';
-  document.getElementById('kpiKostnadSnittSub').textContent = bilerMedKostnad.length
-    ? `${bilerMedKostnad.length} biler med kostnader`
-    : 'Ingen kostnadsdata';
-  const periodeLabel = document.getElementById('periodeVelger')?.options[document.getElementById('periodeVelger')?.selectedIndex]?.text || '';
-  document.getElementById('kpiKostnadSub').textContent = periodeLabel;
+  document.getElementById('kpiPkk').textContent       = pkk30;
 }
 
 // ── Filters & sort ────────────────────────────────────────────────────────────
@@ -872,7 +716,7 @@ function setAvdelingFilter() {
   applyFilters();
 }
 
-let sortAscArr = [true,true,true,false,false,false,true,true,false,false];
+let sortAscArr = [true,true,true,false,false,false,true];
 function sortTable(col) {
   if (sortCol === col) sortAscArr[col] = !sortAscArr[col];
   sortCol = col;
@@ -899,12 +743,6 @@ function sortRows() {
       case 4: av = a.verne?.kilometerstand || 0; bv = b.verne?.kilometerstand || 0; break;
       case 5: av = a.verne?.created_at || ''; bv = b.verne?.created_at || ''; break;
       case 6: av = a.verne?.har_skader ? 1 : 0; bv = b.verne?.har_skader ? 1 : 0; break;
-      case 7: av = a.pkk_kontrollfrist || '9999'; bv = b.pkk_kontrollfrist || '9999'; break;
-      case 8: av = a.kostnad?.total || 0; bv = b.kostnad?.total || 0; break;
-      case 9:
-        av = (a.kostnad?.total && a.odometer_value) ? a.kostnad.total / (a.odometer_value / 1000) : 0;
-        bv = (b.kostnad?.total && b.odometer_value) ? b.kostnad.total / (b.odometer_value / 1000) : 0;
-        break;
       default: av = ''; bv = '';
     }
     if (typeof av === 'string') return asc ? av.localeCompare(bv,'no') : bv.localeCompare(av,'no');
@@ -920,7 +758,7 @@ function renderTable() {
 
   tbody.innerHTML = page.map((r, i) => {
     const abaxKm = r.odometer_value != null
-      ? Math.round(r.odometer_value / 1000).toLocaleString('no-NO') + ' km'
+      ? r.odometer_value.toLocaleString('no-NO') + ' km'
       : '<span class="no-data">–</span>';
     const skjemaKm = r.verne?.kilometerstand != null
       ? r.verne.kilometerstand.toLocaleString('no-NO')
@@ -934,16 +772,6 @@ function renderTable() {
           : '<span class="badge b-green"><span class="dot"></span> Nei</span>')
       : '<span class="badge b-gray">–</span>';
 
-    const pkkTd = pkkBadge(r.pkk_kontrollfrist);
-
-    const k = r.kostnad;
-    const kostnadTxt = k
-      ? `<span class="${k._hoy ? 'kostnad-hoy' : ''}">${fmtNok(k.total)}</span>`
-      : '<span class="no-data">–</span>';
-    const krKm = (k?.total && r.odometer_value)
-      ? (k.total / (r.odometer_value / 1000)).toFixed(2) + ' kr/km'
-      : '<span class="no-data">–</span>';
-
     const globalIdx = start + i;
     return `<tr onclick="openPanel(${globalIdx})">
       <td class="td-primary">${esc(r.driver_name || '–')}</td>
@@ -953,9 +781,6 @@ function renderTable() {
       <td>${skjemaKm}</td>
       <td>${inspDate}</td>
       <td>${damageBadge}</td>
-      <td>${pkkTd}</td>
-      <td class="td-kostnad">${kostnadTxt}</td>
-      <td class="td-krkm">${krKm}</td>
       <td style="color:var(--sub);font-size:1rem">›</td>
     </tr>`;
   }).join('');
@@ -1011,10 +836,9 @@ function openPanel(idx) {
   html += `<div class="panel-section">
     <div class="panel-section-title">Kjøretøyinfo (ABAX)</div>
     <div class="detail-row"><span class="detail-label">Drivstoff</span><span class="detail-value">${fuelLabel(r.fuel_type)}</span></div>
-    <div class="detail-row"><span class="detail-label">Km (ABAX)</span><span class="detail-value">${r.odometer_value != null ? Math.round(r.odometer_value / 1000).toLocaleString('no-NO')+' km' : '–'}</span></div>
+    <div class="detail-row"><span class="detail-label">Km (ABAX)</span><span class="detail-value">${r.odometer_value != null ? r.odometer_value.toLocaleString('no-NO')+' km' : '–'}</span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${healthBadge(r.unit_health)}</span></div>
-    ${r.pkk_sist_godkjent ? `<div class="detail-row"><span class="detail-label">EU godkjent</span><span class="detail-value">${fmtDate(r.pkk_sist_godkjent)}</span></div>` : ''}
-    ${r.pkk_kontrollfrist ? `<div class="detail-row"><span class="detail-label">EU-frist</span><span class="detail-value">${pkkBadge(r.pkk_kontrollfrist)}</span></div>` : ''}
+    ${r.pkk_kontrollfrist ? `<div class="detail-row"><span class="detail-label">PKK-frist</span><span class="detail-value">${fmtDate(r.pkk_kontrollfrist)}</span></div>` : ''}
   </div>`;
 
   if (!v) {
@@ -1061,50 +885,6 @@ function openPanel(idx) {
       });
       html += `</div>`;
     }
-  }
-
-  // ── Kostnader ──
-  const kData = kostnadMap[(r.license_plate || '').toUpperCase()];
-  if (kData && kData.total > 0) {
-    const periodeLabel = document.getElementById('periodeVelger')?.options[document.getElementById('periodeVelger')?.selectedIndex]?.text || '';
-    const kategorier = [
-      { key: 'drivstoff', label: 'Drivstoff',    farge: '#f1b434' },
-      { key: 'vedlikehold', label: 'Vedlikehold', farge: '#002554' },
-      { key: 'leasing',   label: 'Leasing',       farge: '#2e7d32' },
-      { key: 'bom',       label: 'Bom/parkering', farge: '#4a6fa5' },
-      { key: 'dekk',      label: 'Dekk',          farge: '#c62828' },
-      { key: 'andre',     label: 'Andre',          farge: '#888888' },
-    ].filter(k => kData[k.key] > 0);
-
-    const barsHtml = kategorier.map(k => {
-      const pst = Math.round((kData[k.key] / kData.total) * 100);
-      return `<div class="kostnad-bar-wrap">
-        <div class="kostnad-bar-row">
-          <span class="kostnad-bar-label">
-            <span class="kostnad-bar-dot" style="background:${k.farge}"></span>${k.label}
-          </span>
-          <span class="kostnad-bar-amount">${fmtNok(kData[k.key])} (${pst}%)</span>
-        </div>
-        <div class="kostnad-bar-track"><div class="kostnad-bar-fill" style="width:${pst}%;background:${k.farge}"></div></div>
-      </div>`;
-    }).join('');
-
-    const txHtml = [...kData.transaksjoner]
-      .sort((a, b) => new Date(b.posting_date) - new Date(a.posting_date))
-      .slice(0, 10)
-      .map(t => `<div class="kostnad-tx-row">
-        <span style="color:var(--sub)">${fmtDate(t.posting_date)}</span>
-        <span style="color:var(--sub)">${kategorierLabel(t.account_no)}</span>
-        <span style="font-weight:600">${fmtNok(parseFloat(t.amount))}</span>
-      </div>`).join('');
-
-    html += `<div class="panel-section">
-      <div class="panel-section-title">Kostnader – ${periodeLabel}</div>
-      <div style="font-size:1.25rem;font-weight:800;color:#4a6fa5;margin-bottom:12px">${fmtNok(kData.total)}</div>
-      ${barsHtml}
-      ${txHtml ? `<div style="margin-top:12px;font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--sub);margin-bottom:4px">Siste transaksjoner</div>
-      <div class="kostnad-tx-list">${txHtml}</div>` : ''}
-    </div>`;
   }
 
   // ── History ──
@@ -1161,17 +941,6 @@ function healthBadge(h) {
   return `<span class="badge b-gray">${h}</span>`;
 }
 
-function pkkBadge(frist) {
-  if (!frist) return '<span class="badge b-gray">–</span>';
-  const d    = new Date(frist);
-  const now  = new Date();
-  const days = Math.ceil((d - now) / 86400000);
-  if (days < 0)   return `<span class="badge b-red"><span class="dot"></span> Forfalt</span>`;
-  if (days <= 30) return `<span class="badge b-amber"><span class="dot"></span> ${fmtDate(frist)}</span>`;
-  if (days <= 90) return `<span class="badge b-blue"><span class="dot"></span> ${fmtDate(frist)}</span>`;
-  return             `<span class="badge b-green"><span class="dot"></span> ${fmtDate(frist)}</span>`;
-}
-
 function updateTimestamp() {
   const now = new Date().toLocaleString('no-NO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
   document.getElementById('lastUpdated').textContent = 'Sist oppdatert ' + now;
@@ -1180,406 +949,6 @@ function updateTimestamp() {
 
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-// ── Kostnad helpers ───────────────────────────────────────────────────────────
-function fmtNok(n) {
-  if (n == null || isNaN(n)) return '–';
-  return Math.round(n).toLocaleString('no-NO') + ' kr';
-}
-
-function kategoriFra(konto) {
-  if ([7000,7006,7007].includes(konto)) return 'drivstoff';
-  if (konto === 7020)               return 'vedlikehold';
-  if (konto === 7030)               return 'dekk';
-  if ([7080,7086].includes(konto))  return 'bom';
-  if (konto === 6440)               return 'leasing';
-  return 'andre';
-}
-
-function kategorierLabel(konto) {
-  const k = kategoriFra(konto);
-  return { drivstoff:'Drivstoff', vedlikehold:'Vedlikehold', dekk:'Dekk', bom:'Bom/park.', leasing:'Leasing', andre:'Andre' }[k] || 'Andre';
-}
-
-function hentStartDato() {
-  const val = document.getElementById('periodeVelger')?.value || 'ytd';
-  if (val === 'all') return null;
-  const now = new Date();
-  if (val === 'ytd') return `${now.getFullYear()}-01-01`;
-  const d = new Date(now);
-  d.setDate(d.getDate() - parseInt(val));
-  return d.toISOString().slice(0, 10);
-}
-
-async function loadKostnader(fraDate) {
-  let q = client
-    .from('po_kontotransaksjoner')
-    .select('description,account_no,amount,posting_date')
-    .eq('is_reversed', false)
-    .not('description', 'is', null)
-    .limit(10000);  // Supabase-default er 1000 – hent alle relevante rader
-  if (fraDate) q = q.gte('posting_date', fraDate);
-  const { data, error } = await q;
-  if (error) { console.error('Kostnad-feil:', error); return []; }
-  const regnrRe = /^[A-ZÆØÅ]{2}[0-9]{5}$/i;
-  return (data || []).filter(t => regnrRe.test(t.description));
-}
-
-function byggKostnadMap(transaksjoner) {
-  const map = {};
-  for (const t of transaksjoner) {
-    const regnr = t.description.toUpperCase();
-    if (!map[regnr]) map[regnr] = { drivstoff:0, vedlikehold:0, dekk:0, bom:0, leasing:0, andre:0, total:0, transaksjoner:[] };
-    const k     = kategoriFra(t.account_no);
-    const beløp = parseFloat(t.amount) || 0;
-    map[regnr][k]     += beløp;
-    map[regnr].total  += beløp;
-    map[regnr].transaksjoner.push(t);
-  }
-  return map;
-}
-
-async function oppdaterKostnader() {
-  const fraDate      = hentStartDato();
-  const transaksjoner = await loadKostnader(fraDate);
-  kostnadMap         = byggKostnadMap(transaksjoner);
-
-  // Merk topp 20% som høy kostnad
-  const totaler = Object.values(kostnadMap).map(k => k.total).filter(t => t > 0).sort((a,b) => a-b);
-  const p80     = totaler[Math.floor(totaler.length * 0.8)] || Infinity;
-  Object.values(kostnadMap).forEach(k => { k._hoy = k.total >= p80; });
-
-  // Merge inn i allRows
-  for (const row of allRows) {
-    row.kostnad = kostnadMap[(row.license_plate || '').toUpperCase()] || null;
-  }
-}
-
-// ── Drivstoffavvik ────────────────────────────────────────────────────────────
-let _drivstoffHistorikk = null; // lastes én gang ved oppstart
-
-let _notatCache          = {}; // { "regnr_maaned": [{ id, tekst, opprettet_av, opprettet_tid }] }
-let _notatPopoverTarget  = null;
-
-async function lastNotater() {
-  const { data, error } = await client
-    .from('kjoretoy_avvik_notat')
-    .select('id,regnr,maaned,tekst,opprettet_av,opprettet_tid')
-    .order('opprettet_tid', { ascending: false });
-  if (error) { console.error('Notat-feil:', error); return {}; }
-  const map = {};
-  for (const n of (data || [])) {
-    const key = n.regnr + '_' + n.maaned;
-    if (!map[key]) map[key] = [];
-    map[key].push(n);
-  }
-  return map;
-}
-
-async function lagreNotat(regnr, maaned) {
-  const ta  = document.getElementById('notatTekst');
-  const tekst = ta.value.trim();
-  if (!tekst) return;
-  const btn = document.getElementById('notatLagreBtn');
-  btn.disabled = true; btn.textContent = 'Lagrer…';
-  const navn = currentUser?.user_metadata?.full_name
-    || currentUser?.user_metadata?.name
-    || currentUser?.email || 'Ukjent';
-  const { data, error } = await client
-    .from('kjoretoy_avvik_notat')
-    .insert({ regnr, maaned, tekst, opprettet_av: navn })
-    .select();
-  btn.disabled = false; btn.textContent = 'Legg til';
-  if (error) { btn.textContent = '⚠️ Feil'; setTimeout(() => { btn.textContent = 'Legg til'; }, 2000); return; }
-  const key = regnr + '_' + maaned;
-  if (!_notatCache[key]) _notatCache[key] = [];
-  _notatCache[key].unshift(data[0]);
-  ta.value = '';
-  renderNotatListe(regnr, maaned);
-  oppdaterNotatKnapp(regnr, maaned);
-}
-
-function renderNotatListe(regnr, maaned) {
-  const listeEl = document.getElementById('notatListe');
-  if (!listeEl) return;
-  const notater = _notatCache[regnr + '_' + maaned] || [];
-  if (!notater.length) {
-    listeEl.innerHTML = '<div class="notat-ingen">Ingen notater ennå.</div>';
-    return;
-  }
-  listeEl.innerHTML = notater.map(n => `
-    <div class="notat-item">
-      <div class="notat-meta">
-        <span>${esc(n.opprettet_av || 'Ukjent')}</span>
-        <span>${new Date(n.opprettet_tid).toLocaleString('no-NO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</span>
-      </div>
-      <div class="notat-tekst">${esc(n.tekst)}</div>
-    </div>`).join('');
-}
-
-function oppdaterNotatKnapp(regnr, maaned) {
-  const antall = (_notatCache[regnr + '_' + maaned] || []).length;
-  const btn = document.querySelector(`.notat-btn[data-regnr="${regnr}"][data-maaned="${maaned}"]`);
-  if (!btn) return;
-  btn.classList.toggle('har-notater', antall > 0);
-  btn.querySelector('.notat-count').textContent = antall > 0 ? antall : '';
-}
-
-function aapneNotatPopover(btn, regnr, maaned) {
-  const popover = document.getElementById('notatPopover');
-  const key = regnr + '_' + maaned;
-  if (_notatPopoverTarget === key && popover.classList.contains('open')) {
-    lukkNotatPopover(); return;
-  }
-  _notatPopoverTarget = key;
-  const mndLabel = new Date(maaned + '-01').toLocaleDateString('no-NO', { month: 'long', year: 'numeric' });
-  document.getElementById('notatPopoverTittel').textContent = regnr + ' – ' + mndLabel;
-  document.getElementById('notatTekst').value = '';
-  document.getElementById('notatLagreBtn').onclick = () => lagreNotat(regnr, maaned);
-  renderNotatListe(regnr, maaned);
-  // Plasser popover
-  const rect = btn.getBoundingClientRect();
-  const pw = 310;
-  const left = Math.min(rect.right - pw, window.innerWidth - pw - 12);
-  popover.style.top  = (rect.bottom + window.scrollY + 8) + 'px';
-  popover.style.left = Math.max(8, left) + 'px';
-  popover.classList.add('open');
-}
-
-function lukkNotatPopover() {
-  document.getElementById('notatPopover').classList.remove('open');
-  _notatPopoverTarget = null;
-}
-
-// Lukk ved klikk utenfor
-document.addEventListener('click', e => {
-  const pop = document.getElementById('notatPopover');
-  if (!pop?.classList.contains('open')) return;
-  if (!pop.contains(e.target) && !e.target.closest('.notat-btn')) lukkNotatPopover();
-});
-
-async function lastDrivstoffHistorikk() {
-  const { data, error } = await client
-    .from('po_kontotransaksjoner')
-    .select('description,amount,posting_date')
-    .in('account_no', [7000, 7006, 7007])
-    .eq('is_reversed', false)
-    .not('description', 'is', null)
-    .limit(10000);
-  if (error) { console.error('Drivstoff-historikk feil:', error); return {}; }
-  const regnrRe = /^[A-ZÆØÅ]{2}[0-9]{5}$/i;
-  const hist = {};
-  for (const t of (data || [])) {
-    if (!regnrRe.test(t.description)) continue;
-    const regnr  = t.description.toUpperCase();
-    const maaned = t.posting_date?.slice(0, 7); // "YYYY-MM"
-    if (!maaned) continue;
-    if (!hist[regnr]) hist[regnr] = {};
-    hist[regnr][maaned] = (hist[regnr][maaned] || 0) + (parseFloat(t.amount) || 0);
-  }
-  return hist;
-}
-
-function beregnAvvik(hist) {
-  const avvik = [];
-  const naa   = new Date();
-  const grense = new Date(naa); grense.setMonth(grense.getMonth() - 6);
-  const grenseMaaned = grense.toISOString().slice(0, 7);
-
-  for (const [regnr, maaneder] of Object.entries(hist)) {
-    const entries = Object.entries(maaneder)
-      .map(([m, v]) => ({ m, v: Math.round(v) }))
-      .filter(e => e.v > 0)
-      .sort((a, b) => a.m.localeCompare(b.m));
-    if (entries.length < 3) continue; // trenger baseline
-
-    const beløp  = entries.map(e => e.v).sort((a, b) => a - b);
-    const median = beløp[Math.floor(beløp.length / 2)];
-    if (median < 300) continue; // ignorer biler med svært lave normalverdier
-
-    for (const e of entries) {
-      if (e.m < grenseMaaned) continue; // kun siste 6 mnd
-      const ratio = e.v / median;
-      if (ratio < 2.0) continue; // terskel: 2× medianen
-      avvik.push({ regnr, maaned: e.m, kostnad: e.v, median, ratio, entries });
-    }
-  }
-  return avvik.sort((a, b) => b.ratio - a.ratio);
-}
-
-function renderAvviksDrivstoff(avvik, notaterMap = {}) {
-  _notatCache = notaterMap;
-  const grid = document.getElementById('avvikGrid');
-  if (!avvik.length) {
-    grid.innerHTML = '<div class="ingen-avvik">Ingen vesentlige avvik i drivstofforbruk de siste 6 månedene.</div>';
-    return;
-  }
-
-  const aliasMap = {};
-  allRows.forEach(r => { if (r.license_plate) aliasMap[r.license_plate.toUpperCase()] = r.alias || r.driver_name || ''; });
-
-  grid.innerHTML = avvik.map(a => {
-    a._key = a.regnr + '_' + a.maaned; // brukes til event-binding
-    const moderat  = a.ratio < 3;
-    const cls      = moderat ? 'moderat' : '';
-    const alias    = aliasMap[a.regnr] || '';
-    const mndLabel = new Date(a.maaned + '-01').toLocaleDateString('no-NO', { month: 'short', year: '2-digit' });
-
-    // Sparkline: vis alle måneder, fremhev avviksmåneden
-    const maks = Math.max(...a.entries.map(e => e.v));
-    const visMnd = a.entries.slice(-12); // maks 12 søyler
-    const bars = visMnd.map(e => {
-      const hPst   = Math.max(5, Math.round((e.v / maks) * 100));
-      const aktiv  = e.m === a.maaned;
-      const farge  = aktiv ? (moderat ? '#d97706' : '#dc2626') : '#93c5fd';
-      const label  = e.m.slice(5); // "MM"
-      return `<div style="display:flex;flex-direction:column;align-items:center;flex:1">
-        <div class="avvik-bar${aktiv ? ' aktiv' : ''}" style="height:${hPst}%;background:${farge};width:100%"></div>
-        <div class="avvik-bar-label">${aktiv ? '<b>' + label + '</b>' : label}</div>
-      </div>`;
-    }).join('');
-
-    const antall = (notaterMap[a.regnr + '_' + a.maaned] || []).length;
-
-    return `<div class="avvik-card ${cls}">
-      <div class="avvik-card-head">
-        <div>
-          <div class="avvik-card-regnr">${a.regnr}</div>
-          ${alias ? `<div class="avvik-card-alias">${esc(alias)}</div>` : ''}
-        </div>
-        <div class="avvik-ratio ${cls}">${a.ratio.toFixed(1)}× normalen</div>
-      </div>
-      <div class="avvik-card-tall">
-        <div class="avvik-tall-item">
-          <span class="avvik-tall-label">Avviksmåned</span>
-          <span class="avvik-tall-value">${mndLabel}</span>
-        </div>
-        <div class="avvik-tall-item">
-          <span class="avvik-tall-label">Kostnad</span>
-          <span class="avvik-tall-value ${cls || 'hoy'}">${fmtNok(a.kostnad)}</span>
-        </div>
-        <div class="avvik-tall-item">
-          <span class="avvik-tall-label">Normal (median)</span>
-          <span class="avvik-tall-value">${fmtNok(a.median)}</span>
-        </div>
-      </div>
-      <div class="avvik-spark-wrap">
-        <div class="avvik-spark-cols">${bars}</div>
-      </div>
-      <button class="notat-btn ${antall > 0 ? 'har-notater' : ''}"
-        data-regnr="${a.regnr}" data-maaned="${a.maaned}"
-        title="${antall > 0 ? antall + ' notat' + (antall > 1 ? 'er' : '') : 'Legg til notat'}"
-        onclick="aapneNotatPopover(this,'${a.regnr}','${a.maaned}')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-        <span class="notat-count">${antall > 0 ? antall : ''}</span>
-      </button>
-    </div>`;
-  }).join('');
-}
-
-// ── Grafer ────────────────────────────────────────────────────────────────────
-const KOST_FARGER = {
-  drivstoff:  '#f1b434',
-  vedlikehold:'#002554',
-  leasing:    '#2e7d32',
-  bom:        '#4a6fa5',
-  dekk:       '#c62828',
-  andre:      '#888888',
-};
-const KOST_LABELS = {
-  drivstoff:'Drivstoff', vedlikehold:'Vedlikehold', leasing:'Leasing',
-  bom:'Bom/park.', dekk:'Dekk', andre:'Andre',
-};
-const KOST_KATEGORIER = ['drivstoff','vedlikehold','leasing','bom','dekk','andre'];
-
-let _barChart   = null;
-let _donutChart = null;
-
-function renderGrafer() {
-  const entries = Object.entries(kostnadMap)
-    .filter(([, k]) => k.total > 0)
-    .sort(([, a], [, b]) => b.total - a.total)
-    .slice(0, 15);
-
-  // Finn alias fra allRows for Y-aks label
-  const aliasMap = {};
-  allRows.forEach(r => { if (r.license_plate) aliasMap[r.license_plate.toUpperCase()] = r.alias || r.license_plate; });
-
-  const labels = entries.map(([regnr]) => aliasMap[regnr] || regnr);
-
-  // ── Stacked bar chart ──
-  const barCtx = document.getElementById('barChart').getContext('2d');
-  if (_barChart) _barChart.destroy();
-
-  const barHeight = Math.max(200, entries.length * 28);
-  document.getElementById('barChart').style.height = barHeight + 'px';
-
-  _barChart = new Chart(barCtx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: KOST_KATEGORIER.map(kat => ({
-        label:           KOST_LABELS[kat],
-        data:            entries.map(([, k]) => Math.round(k[kat])),
-        backgroundColor: KOST_FARGER[kat],
-        borderRadius:    2,
-      })),
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 14 } },
-        tooltip: {
-          callbacks: {
-            footer: items => 'Totalt: ' + Math.round(items.reduce((s, i) => s + i.raw, 0)).toLocaleString('no-NO') + ' kr',
-            label:  item  => ` ${item.dataset.label}: ${Math.round(item.raw).toLocaleString('no-NO')} kr`,
-          },
-        },
-      },
-      scales: {
-        x: { stacked: true, ticks: { callback: v => (v/1000).toFixed(0)+'k', font:{size:10} }, grid: { color:'#f0f0f0' } },
-        y: { stacked: true, ticks: { font:{size:11} } },
-      },
-    },
-  });
-
-  // ── Donut chart ──
-  const donutCtx = document.getElementById('donutChart').getContext('2d');
-  if (_donutChart) _donutChart.destroy();
-
-  const fleetTotals = KOST_KATEGORIER.map(kat =>
-    Object.values(kostnadMap).reduce((s, k) => s + (k[kat] || 0), 0)
-  ).map(Math.round);
-
-  const fleetTotal = fleetTotals.reduce((s, v) => s + v, 0);
-
-  _donutChart = new Chart(donutCtx, {
-    type: 'doughnut',
-    data: {
-      labels:   KOST_KATEGORIER.map(k => KOST_LABELS[k]),
-      datasets: [{ data: fleetTotals, backgroundColor: KOST_KATEGORIER.map(k => KOST_FARGER[k]), borderWidth: 2 }],
-    },
-    options: {
-      responsive: true,
-      cutout: '60%',
-      plugins: {
-        legend: { position: 'bottom', labels: { font:{size:11}, boxWidth:12, padding:10 } },
-        tooltip: {
-          callbacks: {
-            label: item => {
-              const pst = fleetTotal ? ((item.raw/fleetTotal)*100).toFixed(1) : 0;
-              return ` ${item.label}: ${Math.round(item.raw).toLocaleString('no-NO')} kr (${pst}%)`;
-            },
-          },
-        },
-      },
-    },
-  });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -1620,17 +989,167 @@ function lbKey(e) {
   if (e.key === 'ArrowLeft')  lightboxNav(-1);
 }
 
+// ── Faner ─────────────────────────────────────────────────────────────────────
+function byttFane(fane) {
+  document.getElementById('fane-flate').style.display     = fane === 'flate'     ? '' : 'none';
+  document.getElementById('fane-kostnader').style.display = fane === 'kostnader' ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach((b, i) =>
+    b.classList.toggle('active', (i === 0) === (fane === 'flate')));
+  if (fane === 'kostnader') renderKostnader();
+}
+
+// ── Kostnadsfane ──────────────────────────────────────────────────────────────
+function grupperPerMåned(transaksjoner) {
+  const map = {};
+  transaksjoner.forEach(t => {
+    const mnd = t.posting_date.slice(0, 7); // "2025-03"
+    map[mnd] = (map[mnd] || 0) + Number(t.amount);
+  });
+  return map;
+}
+
+function beregnAvvik(regnr) {
+  const drivstoff = allKostnader.filter(t => t.account_no === 7000 && t.description === regnr);
+  const måneder = grupperPerMåned(drivstoff);
+  const sortert = Object.entries(måneder).sort(([a],[b]) => a.localeCompare(b));
+  if (sortert.length < 3) return null;
+
+  const baseline = sortert.slice(-7, -1).map(([,v]) => v);
+  if (baseline.length < 2) return null;
+  const snitt   = baseline.reduce((s,v) => s+v, 0) / baseline.length;
+  const stddev  = Math.sqrt(baseline.reduce((s,v) => s+(v-snitt)**2, 0) / baseline.length);
+  const sisteMnd = sortert.at(-1)[1];
+  const sisteMndNavn = sortert.at(-1)[0];
+  const pst = snitt > 0 ? Math.round((sisteMnd - snitt) / snitt * 100) : 0;
+
+  if (sisteMnd > snitt + 1.5 * stddev)  return { nivå: 'hoy',     sisteMnd, snitt, pst, mnd: sisteMndNavn };
+  if (sisteMnd > snitt + 0.75 * stddev) return { nivå: 'moderat', sisteMnd, snitt, pst, mnd: sisteMndNavn };
+  return null;
+}
+
+function nok(v) {
+  return v > 0 ? Number(v).toLocaleString('no-NO', { maximumFractionDigits: 0 }) + ' kr' : '–';
+}
+
+function renderKostnader() {
+  const ytdFra = new Date().getFullYear() + '-01-01';
+
+  // Bygg opp per regnr
+  const regnrSet = new Set([
+    ...allKostnader.map(t => t.description),
+    ...allRows.map(r => r.license_plate)
+  ]);
+
+  const abaxMap = {};
+  allRows.forEach(r => { abaxMap[r.license_plate] = r; });
+
+  const rader = [];
+  regnrSet.forEach(regnr => {
+    const ytd = allKostnader.filter(t => t.description === regnr && t.posting_date >= ytdFra);
+    const sum = (kto) => ytd.filter(t => t.account_no === kto).reduce((s,t) => s+Number(t.amount), 0);
+    const drivstoff  = sum(7000);
+    const leasing    = sum(6440);
+    const rep        = sum(6100);
+    const forsikring = sum(6462);
+    const total      = drivstoff + leasing + rep + forsikring +
+                       ytd.filter(t => t.account_no === 6550).reduce((s,t) => s+Number(t.amount), 0);
+    if (total === 0 && !abaxMap[regnr]) return; // hopp over ukjente uten kostnader
+    const avvik = beregnAvvik(regnr);
+    const abax  = abaxMap[regnr];
+    rader.push({ regnr, abax, drivstoff, leasing, rep, forsikring, total, avvik });
+  });
+
+  rader.sort((a,b) => b.total - a.total);
+
+  // Varsler
+  const høye    = rader.filter(r => r.avvik?.nivå === 'hoy');
+  const moderate = rader.filter(r => r.avvik?.nivå === 'moderat');
+  const grid = document.getElementById('varselGrid');
+  if (høye.length === 0 && moderate.length === 0) {
+    grid.innerHTML = `<div class="varsel-kort ok">✅ Ingen avvikende drivstofforbruk siste måned</div>`;
+  } else {
+    grid.innerHTML = [...høye, ...moderate].map(r => {
+      const cls  = r.avvik.nivå === 'hoy' ? 'hoy' : 'moderat';
+      const ikon = r.avvik.nivå === 'hoy' ? '🔴' : '🟡';
+      const mndNavn = new Date(r.avvik.mnd + '-01').toLocaleString('no-NO', { month:'long', year:'numeric' });
+      return `<div class="varsel-kort ${cls}" style="cursor:pointer" onclick="åpneKostPanel('${esc(r.regnr)}')">
+        <div class="varsel-regnr">${ikon} ${esc(r.regnr)}${r.abax ? ' – ' + esc(r.abax.driver_name || '') : ''}</div>
+        <div class="varsel-tekst">${r.avvik.pst > 0 ? '+' : ''}${r.avvik.pst}% over normalt (${mndNavn}: ${nok(r.avvik.sisteMnd)} vs snitt ${nok(r.avvik.snitt)})</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Tabell
+  document.getElementById('kostBody').innerHTML = rader.map(r => {
+    const avvikHtml = r.avvik
+      ? `<span class="kost-avvik-${r.avvik.nivå}">${r.avvik.nivå === 'hoy' ? '🔴' : '🟡'} +${r.avvik.pst}%</span>`
+      : '';
+    return `<tr style="cursor:pointer" onclick="åpneKostPanel('${esc(r.regnr)}')">
+      <td><span class="badge b-navy">${esc(r.regnr)}</span></td>
+      <td>${r.abax ? esc(r.abax.manufacturer + ' ' + r.abax.model) : '–'}</td>
+      <td>${r.abax ? esc(r.abax.driver_name || '–') : '–'}</td>
+      <td class="num">${nok(r.drivstoff)}</td>
+      <td class="num">${nok(r.leasing)}</td>
+      <td class="num">${nok(r.rep)}</td>
+      <td class="num">${nok(r.forsikring)}</td>
+      <td class="num" style="font-weight:700">${nok(r.total)}</td>
+      <td>${avvikHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Kostnad drilldown ─────────────────────────────────────────────────────────
+function åpneKostPanel(regnr) {
+  const abax = allRows.find(r => r.license_plate === regnr);
+  const txer = allKostnader.filter(t => t.description === regnr)
+    .sort((a,b) => b.posting_date.localeCompare(a.posting_date));
+
+  const kontoNavn = { 7000:'Drivstoff', 6440:'Leasing', 6100:'Reparasjon', 6462:'Forsikring', 6550:'Diverse' };
+
+  const rader = txer.map(t => {
+    const fak = (window._leverandorMap || {})[String(t.voucher_no)] || {};
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:.45rem .5rem">${t.posting_date.slice(0,10)}</td>
+      <td style="padding:.45rem .5rem">${esc(kontoNavn[t.account_no] || t.account_no)}</td>
+      <td style="padding:.45rem .5rem">${esc(fak.leverandor || '–')}</td>
+      <td style="padding:.45rem .5rem;text-align:right;font-variant-numeric:tabular-nums">${Number(t.amount).toLocaleString('no-NO',{maximumFractionDigits:0})} kr</td>
+      <td style="padding:.45rem .5rem;color:var(--sub);font-size:.8rem">${esc(String(t.voucher_no || '–'))}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('kostPanelInnhold').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+      <strong style="font-size:1.1rem">${esc(regnr)}${abax ? ' – ' + esc((abax.manufacturer||'')+' '+(abax.model||'')) : ''}</strong>
+      <button onclick="lukkKostPanel()" style="background:none;border:none;font-size:1.6rem;cursor:pointer;color:var(--sub);line-height:1">×</button>
+    </div>
+    ${abax ? `<p style="color:var(--sub);font-size:.88rem;margin-bottom:1.2rem">${esc(abax.driver_name||'')}</p>` : ''}
+    <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);color:var(--sub);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em">
+          <th style="text-align:left;padding:.4rem .5rem;font-weight:700">Dato</th>
+          <th style="text-align:left;padding:.4rem .5rem;font-weight:700">Type</th>
+          <th style="text-align:left;padding:.4rem .5rem;font-weight:700">Leverandør</th>
+          <th style="text-align:right;padding:.4rem .5rem;font-weight:700">Beløp</th>
+          <th style="text-align:left;padding:.4rem .5rem;font-weight:700">Bilag</th>
+        </tr>
+      </thead>
+      <tbody>${rader || '<tr><td colspan="5" style="padding:1rem;color:var(--sub)">Ingen transaksjoner funnet</td></tr>'}</tbody>
+    </table>`;
+
+  document.getElementById('kostBackdrop').style.display = '';
+  document.getElementById('kostPanel').style.display    = '';
+}
+
+function lukkKostPanel() {
+  document.getElementById('kostBackdrop').style.display = 'none';
+  document.getElementById('kostPanel').style.display    = 'none';
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   const { data: { session } } = await client.auth.getSession();
   if (session?.user) {
-    const harTilgang = await sjekkTilgang(session.user);
-    if (harTilgang) {
-      showApp(session.user);
-      await loadData();
-    } else {
-      visIngenTilgang(session.user);
-    }
+    await startApp(session.user);
   } else {
     document.getElementById('loadingOverlay').style.display = 'none';
     showLoginScreen();
@@ -1638,40 +1157,12 @@ async function init() {
 
   client.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
-      const harTilgang = await sjekkTilgang(session.user);
-      if (harTilgang) {
-        showApp(session.user);
-        await loadData();
-      } else {
-        visIngenTilgang(session.user);
-      }
+      await startApp(session.user);
     } else if (event === 'SIGNED_OUT') {
       showLoginScreen();
     }
   });
 }
-
-// Periodefilter: oppdater kun kostnad + re-render (ikke ny ABAX-fetch)
-document.getElementById('periodeVelger').addEventListener('change', async () => {
-  const sel = document.getElementById('periodeVelger');
-  sel.disabled = true;
-
-  // Vis "laster"-tilstand i kostnad-KPI-kortene
-  document.getElementById('kpiKostnadTotal').textContent = '…';
-  document.getElementById('kpiKostnadSnitt').textContent = '…';
-  document.getElementById('kpiKostnadSub').textContent   = 'Laster…';
-
-  try {
-    await oppdaterKostnader();
-    renderKPIs();
-    renderGrafer();
-    renderTable();
-  } catch (err) {
-    console.error('Periodefilter-feil:', err);
-  } finally {
-    sel.disabled = false;
-  }
-});
 
 init();
 </script>
